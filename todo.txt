@@ -4,3 +4,24 @@ Here is the to-do file for bird-slideshow
  - read config from .toml file?
  - test with lots of online sites
  - support sites that require a login (like owncloud)
+   - requests can use auth=(user, password) in a request
+   - see ~/work/test/owncloud-copy-test for some test programs
+ - support webdav access to a site:
+   - use webdavclient module for python (or easywebdav)
+     - see https://stackoverflow.com/questions/1539378/python-client-library-for-webdav
+   - use scp to get file
+   - list files: davs://birdcloud.org/remote.php/webdav/Photos (??)
+   - specify user:password for a source
+   - source=davs://birdcloud.org/remote.php/webdav/Photos (??)
+ - support ssh access to a site
+   - use scp to get file
+   - specify user:password for a source
+   - source=ssh://birdcloud.org/data/owncloud/data/tbird20d/files/Photos
+ - make my own server that handles meta-data
+   - source=https://birdcloud.org/cgi-bin/bss-server.cgi/query?person=Tim?place=beach?date=2013
+   - returns a list of files:
+     <img src="/cgi-bin/bss-server.cgi/file/data/2013/2013-06/Hawaii-trip/DSC_2015.jpg">
+     <img src="/cgi-bin/bss-server.cgi/file/data/2013/2013-08/Santa-Cruz/DSC_459.jpg">
+     etc.
+
+
