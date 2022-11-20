@@ -1,0 +1,7 @@
+source=sample-pics
+source=https://wikipedia.org/
+wait_time=1.5
+start_full=0
+default_resolution=958x720
+max_grow=5
+cache_dir=cache
