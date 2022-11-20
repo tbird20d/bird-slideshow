@@ -9,6 +9,7 @@
 debug = False
 
 import os
+import sys
 import requests
 from urllib.parse import urlparse
 from tkinter import *
@@ -16,7 +17,7 @@ from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
 class config_class:
-    pass
+    ...
 
 def dprint(msg):
     global debug
