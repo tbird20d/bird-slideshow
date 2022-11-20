@@ -14,7 +14,8 @@ Features:
 
 Config File
 -----------
-Here are the allowed fields in the config file (which is in .toml format):
+Here are the allowed fields in the config file (which is in a simple name=value
+text file format):
 
 source= specifies the directory or website to read pictures from
   This option can be specified multiple times in the config file.
