@@ -16,21 +16,57 @@ from tkinter import *
 from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
-class config_class:
-    ...
+class Config:
+    def __init__(self, config_file: str | None) -> None:
+        # Configurable items
+        self.sources = []
+        self.wait_time = 5
+        self.start_full = False
+        self.win_res = "958x720"
+        self.max_grow = 4.0
+        self.cache_dir = "cache"
+
+        self.config_file = config_file
+
+    def read_config(self):
+        with open(self.config_file) as options_file:
+            for line in options_file:
+                if not line or line.startswith("#"):
+                    continue
+                name, value = line.strip().split("=", 1)
+
+                if name == "source":
+                    source = value
+                    self.sources.append(source)
+                elif name == "wait_time":
+                    self.wait_time = int(float(value) * 1000)
+                elif name == "start_full":
+                    self.start_full = {"True":True, "False":False}[value.capitalize()]
+                elif name == "default_resolution":
+                    self.win_res = value
+                elif name == "max_grow":
+                    self.max_grow = float(value)
+                elif name ==  "cache_dir":
+                    self.cache_dir = value
+                else:
+                    print(f"Unknown config option: '{name}'")
+
+    def input_config(self):
+        num_sources = int(input("Number of image sources (from directories or webpages): "))
+        for count in range(num_sources):
+            source = input("Source of images (directory or url): ")
+            self.sources.append(source)
+        self.wait_time = int(float(input("Wait time in seconds: ")) * 1000)
+        self.start_full = {"True":True, "False":False}[input("Start in fullscreen mode (True/False): ").capitalize()]
+        self.win_res = input("Window resolution (in the form '{width}x{height}'): ")
+        self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
+        self.cache_dir = input("Directory for cache: ")
+        
 
 def dprint(msg):
     global debug
     if debug:
-        print("DEBUG: " + str(msg))
-
-# Configurable items
-SOURCE = "Pictures"
-WAIT_TIME = 5
-START_FULL = 1
-WIN_RES = "958x720"
-MAX_GROW = 4
-CACHE_DIR = "cache"
+        print("DEBUG:", str(msg))
 
 # Globals
 img_paths = []
@@ -38,57 +74,27 @@ pil_imgs = []
 tk_imgs = []
 imgs_index = -1
 
-sources = []
+config = Config("options.txt")
 
 win = None
 canvas = None
-win_width = 0
-win_height = 0
-
-is_full = 1
+win_width: int
+win_height: int
+is_full: bool
 
 
 # Get options inputs from file, else from console
 def get_config():
-    global SOURCE, WAIT_TIME, START_FULL, WIN_RES, MAX_GROW
     global is_full, win_width, win_height
 
-    config = config_class
-
-    if "options.txt" in os.listdir():
-        with open("options.txt") as options_file:
-            for line in options_file:
-                if not line or line.startswith("#"):
-                    continue
-                name, value = line.strip().split("=", 1)
-
-                if name == "source":
-                    SOURCE = value
-                    sources.append(SOURCE)
-                elif name == "wait_time":
-                    WAIT_TIME = int(float(value) * 1000)
-                elif name == "start_full":
-                    START_FULL = bool(int(value))
-                elif name == "default_resolution":
-                    WIN_RES = value
-                elif name == "max_grow":
-                    MAX_GROW = float(value)
-                elif name ==  "cache_dir":
-                    CACHE_DIR = value
-                else:
-                    print("ERROR: Unknown config option - ", name)
+    if config.config_file in os.listdir():
+        config.read_config()
     else:
-        SOURCE = input("Source of images (directory or webpage url): ")
-        sources.append(SOURCE)
-        WAIT_TIME = int(float(input("Wait time in seconds: ")) * 1000)
-        START_FULL = bool(int(input("Start in fullscreen mode (0/1): ")))
-        WIN_RES = input("Window resolution (in the form '{width}x{height}'): ")
-        MAX_GROW = float(input("Max growth factor for image resizing (2 = 200%): "))
-        CACHE_DIR = input("Directory for cache: ")
+        config.input_config()
 
-    is_full = START_FULL
+    is_full = config.start_full
 
-    width, height = WIN_RES.split('x')
+    width, height = config.win_res.split('x')
     win_width = int(width)
     win_height = int(height)
 
@@ -99,7 +105,7 @@ def init_window():
 
     win = Tk()
     win.title("Slideshow")
-    win.geometry(WIN_RES)
+    win.geometry(config.win_res)
     canvas = Canvas(win,
         width = win_width,
         height = win_height,
@@ -107,7 +113,7 @@ def init_window():
     )
     canvas.pack(fill=BOTH, expand=True)
 
-    win.attributes("-fullscreen", START_FULL)
+    win.attributes("-fullscreen", config.start_full)
     win.bind("<F11>", toggle_fullscreen)
     win.bind("<Escape>", quit_window)
     win.bind("<Right>", rotate_img_forward)
@@ -241,7 +247,7 @@ def download_img(cache_dir, img_link):
 def load_img(path):
     # print("loading image: " + path)
     if path.startswith("http"):
-        filepath = download_img(CACHE_DIR, path)
+        filepath = download_img(config.cache_dir, path)
         if filepath:
             try:
                 img = Image.open(filepath)
@@ -296,7 +302,7 @@ def update_img():
     global win_width, win_height
     global canvas
 
-    print("DEBUG: IN UPDATE IMG: imgs_index =", imgs_index)
+    dprint("DEBUG: IN UPDATE IMG: imgs_index = " + str(imgs_index))
 
 
     img_path = img_paths[imgs_index]
@@ -306,7 +312,7 @@ def update_img():
         pil_image = load_img(img_path)
         pil_imgs[imgs_index] = pil_image
     else:
-        print("using already-loaded image")
+        dprint("using already-loaded image")
 
     # Resize the PIL
     if not pil_image:
@@ -341,7 +347,7 @@ def next_img():
         imgs_index += len(img_paths)
 
     update_img()
-    win.after(WAIT_TIME, next_img)
+    win.after(config.wait_time, next_img)
 
     preload_index = imgs_index + 1
     if preload_index >= len(img_paths)-1:
@@ -391,7 +397,7 @@ def main():
 
     get_config()
     init_window()
-    get_paths(sources)
+    get_paths(config.sources)
     if not img_paths:
         print("Error: no images found. Aborting program")
         print("(Maybe check the 'source' lines in your config file?)")
