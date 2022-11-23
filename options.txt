@@ -1,6 +1,6 @@
 #source=sample-pics
 #source=https://wikipedia.org/
-source=https://bird.org/nathan/MissionBlog?start_entry=90
+source=https://bird.org/nathan/MissionBlog?start_entry=1
 wait_time=1.5
 start_full=0
 default_resolution=958x720
