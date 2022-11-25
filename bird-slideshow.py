@@ -17,7 +17,7 @@ from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
 class Config:
-    def __init__(self, config_file: str | None) -> None:
+    def __init__(self, config_file=None):
         # Configurable items
         self.sources = []
         self.wait_time = 5
@@ -49,7 +49,7 @@ class Config:
                 elif name ==  "cache_dir":
                     self.cache_dir = value
                 else:
-                    print(f"Unknown config option: '{name}'")
+                    print("Unknown config option: '%s'" % name)
 
     def input_config(self):
         num_sources = int(input("Number of image sources (from directories or webpages): "))
@@ -78,9 +78,9 @@ config = Config("options.txt")
 
 win = None
 canvas = None
-win_width: int
-win_height: int
-is_full: bool
+win_width = 0
+win_height = 0
+is_full = False
 
 
 # Get options inputs from file, else from console
@@ -240,7 +240,7 @@ def download_img(cache_dir, img_link):
         return filepath
 
     except:
-        print("Error", f"Could not download {img_link}")
+        print("Error", "Could not download %s" % img_link)
         return ""
 
 
