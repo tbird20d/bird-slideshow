@@ -41,7 +41,10 @@ class Config:
                 elif name == "wait_time":
                     self.wait_time = int(float(value) * 1000)
                 elif name == "start_full":
-                    self.start_full = {"True":True, "False":False}[value.capitalize()]
+                    self.start_full = {"True":True,
+                                       "False":False,
+                                       "1":True,
+                                       "0":False}[value.capitalize()]
                 elif name == "default_resolution":
                     self.win_res = value
                 elif name == "max_grow":
@@ -61,7 +64,7 @@ class Config:
         self.win_res = input("Window resolution (in the form '{width}x{height}'): ")
         self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
-        
+
 
 def dprint(msg):
     global debug
@@ -97,6 +100,12 @@ def get_config():
     width, height = config.win_res.split('x')
     win_width = int(width)
     win_height = int(height)
+
+
+# Make sure there is a cache directory to download images into.
+def define_cache(config):
+    if not os.path.exists(config.cache_dir):
+        os.mkdir(config.cache_dir)
 
 
 # Create tkinter window and pack canvas to it
@@ -396,6 +405,7 @@ def main():
         debug = True
 
     get_config()
+    define_cache(config)
     init_window()
     get_paths(config.sources)
     if not img_paths:
