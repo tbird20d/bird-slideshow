@@ -44,7 +44,9 @@ class Config:
                     self.start_full = {"True":True,
                                        "False":False,
                                        "1":True,
-                                       "0":False}[value.capitalize()]
+                                       "0":False,
+                                       "Yes":True,
+                                       "No":False}[value.capitalize()]
                 elif name == "default_resolution":
                     self.win_res = value
                 elif name == "max_grow":
