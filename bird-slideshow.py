@@ -17,7 +17,7 @@ from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
 class Config:
-    def __init__(self, config_file: str | None) -> None:
+    def __init__(self, config_file=None):
         # Configurable items
         self.sources = []
         self.wait_time = 5
@@ -41,7 +41,12 @@ class Config:
                 elif name == "wait_time":
                     self.wait_time = int(float(value) * 1000)
                 elif name == "start_full":
-                    self.start_full = {"True":True, "False":False}[value.capitalize()]
+                    self.start_full = {"True":True,
+                                       "False":False,
+                                       "1":True,
+                                       "0":False,
+                                       "Yes":True,
+                                       "No":False}[value.capitalize()]
                 elif name == "default_resolution":
                     self.win_res = value
                 elif name == "max_grow":
@@ -49,7 +54,7 @@ class Config:
                 elif name ==  "cache_dir":
                     self.cache_dir = value
                 else:
-                    print(f"Unknown config option: '{name}'")
+                    print("Unknown config option: '%s'" % name)
 
     def input_config(self):
         num_sources = int(input("Number of image sources (from directories or webpages): "))
@@ -61,7 +66,7 @@ class Config:
         self.win_res = input("Window resolution (in the form '{width}x{height}'): ")
         self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
-        
+
 
 def dprint(msg):
     global debug
@@ -78,9 +83,9 @@ config = Config("options.txt")
 
 win = None
 canvas = None
-win_width: int
-win_height: int
-is_full: bool
+win_width = 0
+win_height = 0
+is_full = False
 
 
 # Get options inputs from file, else from console
@@ -97,6 +102,12 @@ def get_config():
     width, height = config.win_res.split('x')
     win_width = int(width)
     win_height = int(height)
+
+
+# Make sure there is a cache directory to download images into.
+def define_cache(config):
+    if not os.path.exists(config.cache_dir):
+        os.mkdir(config.cache_dir)
 
 
 # Create tkinter window and pack canvas to it
@@ -240,7 +251,7 @@ def download_img(cache_dir, img_link):
         return filepath
 
     except:
-        print("Error", f"Could not download {img_link}")
+        print("Error", "Could not download %s" % img_link)
         return ""
 
 
@@ -396,6 +407,7 @@ def main():
         debug = True
 
     get_config()
+    define_cache(config)
     init_window()
     get_paths(config.sources)
     if not img_paths:
