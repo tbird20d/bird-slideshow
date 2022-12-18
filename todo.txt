@@ -1,6 +1,7 @@
 Here is the to-do file for bird-slideshow
 
 == To Do ==
+ - use tkinter/customtkinter to pull up a window gui for config options
  - read config from .toml file?
  - test with lots of online sites
  - support sites that require a login (like owncloud)
