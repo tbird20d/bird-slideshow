@@ -18,17 +18,36 @@ from bs4 import BeautifulSoup
 
 class Config:
     def __init__(self, config_file=None):
-        # Configurable items
+        """Responsible for handling all configurable-related items and actions.
+        Defines configurable items as attributes of an instance of the Config object.
+
+        :param config_file: str - The name of the config file if there is one in the same 
+        directory as the sildeshow script. Default is None
+        """
+
+        # Default values
         self.sources = []
         self.wait_time = 5
         self.start_full = False
-        self.win_res = "958x720"
+        self.win_start_res = "958x720"
+        self.win_start_width = 958
+        self.win_start_height = 720
         self.max_grow = 4.0
         self.cache_dir = "cache"
 
         self.config_file = config_file
 
+        if self.config_file in os.listdir():
+            self.read_config()
+        else:
+            self.input_config()
+
+        self.convert_win_res()
+
     def read_config(self):
+        """Read from config file (such as 'options.txt') and assign all the
+        config items in the file to the attributes.
+        """
         with open(self.config_file) as options_file:
             for line in options_file:
                 if not line or line.startswith("#"):
@@ -48,7 +67,7 @@ class Config:
                                        "Yes":True,
                                        "No":False}[value.capitalize()]
                 elif name == "default_resolution":
-                    self.win_res = value
+                    self.win_start_res = value
                 elif name == "max_grow":
                     self.max_grow = float(value)
                 elif name ==  "cache_dir":
@@ -57,18 +76,34 @@ class Config:
                     print("Unknown config option: '%s'" % name)
 
     def input_config(self):
+        """Ask user to input all values for config items and assign them to attributes."""
         num_sources = int(input("Number of image sources (from directories or webpages): "))
-        for count in range(num_sources):
+        for _ in range(num_sources):
             source = input("Source of images (directory or url): ")
             self.sources.append(source)
         self.wait_time = int(float(input("Wait time in seconds: ")) * 1000)
         self.start_full = {"True":True, "False":False}[input("Start in fullscreen mode (True/False): ").capitalize()]
-        self.win_res = input("Window resolution (in the form '{width}x{height}'): ")
+        self.win_start_res = input("Window resolution (in the form '{width}x{height}'): ")
         self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
 
+    def convert_win_res(self):
+        """Converts the win_res string into win_width and win_height ints."""
+        width, height = self.win_start_res.split('x')
+        self.win_start_width = int(width)
+        self.win_start_height = int(height)
+
+
+class SlideshowImage:
+    def __init__(self):
+        """Stores each image type in one object."""
+        self.img_path = None
+        self.pil_img = None
+        self.tk_img = None
+
 
 def dprint(msg):
+    """Debug print statement. Adds DEBUG to the front of a string and prints it."""
     global debug
     if debug:
         print("DEBUG:", str(msg))
@@ -83,40 +118,29 @@ config = Config("options.txt")
 
 win = None
 canvas = None
-win_width = 0
-win_height = 0
-is_full = False
-
-
-# Get options inputs from file, else from console
-def get_config():
-    global is_full, win_width, win_height
-
-    if config.config_file in os.listdir():
-        config.read_config()
-    else:
-        config.input_config()
-
-    is_full = config.start_full
-
-    width, height = config.win_res.split('x')
-    win_width = int(width)
-    win_height = int(height)
+is_full = config.start_full
+win_width = config.win_start_width
+win_height = config.win_start_height
 
 
 # Make sure there is a cache directory to download images into.
 def define_cache(config):
+    """Creates a cache folder if the name of the one in the Config object does
+    not already exist.
+    """
     if not os.path.exists(config.cache_dir):
         os.mkdir(config.cache_dir)
 
 
-# Create tkinter window and pack canvas to it
 def init_window():
+    """Create tkinter window and pack canvas to it.\n
+    Also binds key presses to functions.
+    """
     global win, canvas
 
     win = Tk()
     win.title("Slideshow")
-    win.geometry(config.win_res)
+    win.geometry(config.win_start_res)
     canvas = Canvas(win,
         width = win_width,
         height = win_height,
@@ -133,28 +157,53 @@ def init_window():
 
 
 def toggle_fullscreen(event):
+    """Switches between fullscreen and windowed.
+    
+    :param event - keypress event
+    """
     global is_full
     is_full = not is_full
     win.attributes("-fullscreen", is_full)
 
 
 def quit_window(event):
+    """Closes the window.
+    
+    :param event - keypress event
+    """
     win.destroy()
 
 
-def get_img_tags(html):
-    # Parse HTML Code
-    soup = BeautifulSoup(html, 'html.parser')
-    # find all images in URL
-    img_tags = soup.findAll('img')
-    dprint("img_tags=%s" % img_tags)
-    return img_tags
+def get_paths(sources):
+    """Takes each source in Config.sources and stores the path in global img_paths.
+
+    TODO: refactor img_paths into SlideshowImage object
+
+    :param sources: list[str] - the list of sources from the Config object
+    """
+    global img_paths
+
+    for src in sources:
+        if src.startswith("http"):
+            get_http_paths(src)
+        else:
+            get_file_paths(src)
+
+    if debug:
+        for path in img_paths:
+            dprint("path=%s" % path)
 
 
 def get_http_paths(url):
+    """Gets the img_path from the html and appends it to the global img_paths list.
+
+    TODO: refactor img_paths into SlideshowImage object
+
+    :param url: str - comes from the Config source
+    """
     dprint("getting html for url %s" % url)
     html = requests.get(url).text
-    dprint("html='%s'" % html)
+    dprint("html=\n'%s'" % html)
     tags = get_img_tags(html)
     dprint("tags=%s" % tags)
 
@@ -187,7 +236,28 @@ def get_http_paths(url):
         tk_imgs.append(None)
 
 
+def get_img_tags(html):
+    """Gets the html <img> tags, e.x. <img src="..." height=...>.
+    
+    :param html: str - the full html text from the src url
+
+    :returns img_tags: bs4.ResultSet - the list of html <img> tags
+    """
+    # Parse HTML Code
+    soup = BeautifulSoup(html, 'html.parser')
+    # find all images in URL
+    img_tags = soup.findAll('img')
+    dprint("img_tags=%s" % img_tags)
+    return img_tags
+
+
 def get_file_paths(directory):
+    """Gets the directorial image tags.
+    
+    :param directory: str - the name of the directory from the Config source
+
+    :returns img_tags: bs4.ResultSet - the list of html <img> tags
+    """
     global img_paths, pil_imgs, tk_imgs
 
     saved_dir = os.getcwd()
@@ -205,21 +275,13 @@ def get_file_paths(directory):
     os.chdir(saved_dir)
 
 
-def get_paths(sources):
-    global img_paths
-
-    for src in sources:
-        if src.startswith("http"):
-            get_http_paths(src)
-        else:
-            get_file_paths(src)
-
-    if debug:
-        for path in img_paths:
-            dprint("path=%s" % path)
-
-
 def async_preload_img(preload_index):
+    """
+
+    TODO: refactor img_paths and pil_imgs into SlideshowImage object
+
+    :param preload_index: int - ...
+    """
     global img_paths, pil_imgs
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
 
@@ -391,8 +453,10 @@ def rotate_img_back(event):
     update_img()
 
 
-# Gets the current width and height of the window
 def update_win_info():
+    """Gets the current width and height of the window and updates global
+    win_width and win_height.
+    """
     global win_width, win_height
     win_width = win.winfo_width()
     win_height = win.winfo_height()
@@ -406,7 +470,6 @@ def main():
     if "--debug" in sys.argv:
         debug = True
 
-    get_config()
     define_cache(config)
     init_window()
     get_paths(config.sources)
