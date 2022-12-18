@@ -1,7 +1,6 @@
 #source=sample-pics
 #source=https://wikipedia.org/
-#source=https://bird.org/nathan/MissionBlog?start_entry=1
-source=https://www.google.com/search?q=minecraft&hl=en&authuser=0&tbm=isch&sxsrf=ALiCzsZxtAuV20H0uyEaiC64PLXNBaRydQ%3A1669871167392&source=hp&biw=1220&bih=715&ei=PzaIY4q1FeKeptQPuMShgAE&iflsig=AJiK0e8AAAAAY4hET-wf2tfchMDzUU9tM7K0DEQ5T8FD&ved=0ahUKEwjK0IDu0tf7AhVij4kEHThiCBAQ4dUDCAc&uact=5&oq=minecraft&gs_lcp=CgNpbWcQAzIICAAQgAQQsQMyBQgAEIAEMgUIABCABDIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQyBQgAEIAEMgUIABCABDIFCAAQgAQ6BwgjEOoCECc6BAgjECdQygRY6i1gwy5oA3AAeACAAXWIAdUHkgEDMC45mAEAoAEBqgELZ3dzLXdpei1pbWewAQo&sclient=img
+source=https://bird.org/nathan/MissionBlog?start_entry=50
 wait_time=1.5
 start_full=True
 default_resolution=958x720
