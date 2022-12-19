@@ -95,11 +95,11 @@ class Config:
 
 
 class SlideshowImage:
-    def __init__(self):
+    def __init__(self, img_path=None, pil_img=None, tk_img=None):
         """Stores each image type in one object."""
-        self.img_path = None
-        self.pil_img = None
-        self.tk_img = None
+        self.img_path = img_path
+        self.pil_img = pil_img
+        self.tk_img = tk_img
 
 
 def dprint(msg):
@@ -109,9 +109,12 @@ def dprint(msg):
         print("DEBUG:", str(msg))
 
 # Globals
-img_paths = []
-pil_imgs = []
-tk_imgs = []
+# img_paths = []
+# pil_imgs = []
+# tk_imgs = []
+# ^v refactoring
+slideshow_imgs = []
+
 imgs_index = -1
 
 config = Config("options.txt")
@@ -201,6 +204,8 @@ def get_http_paths(url):
 
     :param url: str - comes from the Config source
     """
+    global slideshow_imgs
+
     dprint("getting html for url %s" % url)
     html = requests.get(url).text
     dprint("html=\n'%s'" % html)
@@ -231,9 +236,10 @@ def get_http_paths(url):
             img_link = url_prefix + "/" + img_link
 
         dprint("Adding %s to img_paths" % img_link)
-        img_paths.append(img_link)
-        pil_imgs.append(None)
-        tk_imgs.append(None)
+        # img_paths.append(img_link)
+        # pil_imgs.append(None)
+        # tk_imgs.append(None)
+        slideshow_imgs.append(SlideshowImage(img_path=img_link))
 
 
 def get_img_tags(html):
@@ -258,7 +264,7 @@ def get_file_paths(directory):
 
     :returns img_tags: bs4.ResultSet - the list of html <img> tags
     """
-    global img_paths, pil_imgs, tk_imgs
+    global slideshow_imgs
 
     saved_dir = os.getcwd()
     os.chdir(directory)
@@ -269,9 +275,10 @@ def get_file_paths(directory):
 
     for filename in img_filenames:
         path = os.path.abspath(filename)
-        img_paths.append(path)
-        pil_imgs.append(None)
-        tk_imgs.append(None)
+        # img_paths.append(path)
+        # pil_imgs.append(None)
+        # tk_imgs.append(None)
+        slideshow_imgs.append(SlideshowImage(img_path=path))
     os.chdir(saved_dir)
 
 
@@ -282,18 +289,61 @@ def async_preload_img(preload_index):
 
     :param preload_index: int - ...
     """
-    global img_paths, pil_imgs
+    # global img_paths, pil_imgs
+    global slideshow_imgs
+
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
 
-    img_path = img_paths[preload_index]
-    pil_image = pil_imgs[preload_index]
-    if not pil_image:
-        pil_image = load_img(img_path)
-        pil_imgs[preload_index] = pil_image
+    # img_path = img_paths[preload_index]
+    # pil_image = pil_imgs[preload_index]
+    # if not pil_image:
+    #     pil_image = load_img(img_path)
+    #     pil_imgs[preload_index] = pil_image
+
+    # IF pil_img of SlideshowImage at preload_i is None
+    if not slideshow_imgs[preload_index].pil_img:
+        # pil_img of SlideshowImage at preload_i <- loaded img_path
+        slideshow_imgs[preload_index].pil_img = load_img(slideshow_imgs[preload_index].img_path)
+
+
+def load_img(path):
+    """Takes an image path and turns it into a PIL image. If path is a remote
+    (web) image, it will be downloaded into the cache directory from the config
+    object.
+    
+    :param path: str - the path of the image, whether it be from a remote image
+    or from the local machine
+    """
+    # print("loading image: " + path)
+    if path.startswith("http"):
+        filepath = download_img(config.cache_dir, path)
+        if filepath:
+            try:
+                img = Image.open(filepath)
+            except:
+                img = None
+        else:
+            print("Error: could not load remote image from path %s" % path)
+            img = None
+    else:
+        try:
+            img = Image.open(path)
+        except:
+            print("Error: could not load image from path %s" % path)
+            img = None
+
+    return img
 
 
 def download_img(cache_dir, img_link):
-    dprint("In download_img (line 151) cache_dir = %s" % cache_dir)
+    """Downloads the remote (web) image to the cache directory specified in
+    :class:`Config` object.
+
+    :param cache_dir: str = the directory to download the image to
+    :param img_link: str = the http path to the remote image
+    """
+
+    dprint("In download_img (line 338) cache_dir = %s" % cache_dir)
     filename = os.path.basename(img_link)
     filepath = cache_dir + os.sep + filename
 
@@ -317,49 +367,32 @@ def download_img(cache_dir, img_link):
         return ""
 
 
-def load_img(path):
-    # print("loading image: " + path)
-    if path.startswith("http"):
-        filepath = download_img(config.cache_dir, path)
-        if filepath:
-            try:
-                img = Image.open(filepath)
-            except:
-                img = None
-        else:
-            print("Error: could not load remote image from path %s" % path)
-            img = None
-    else:
-        try:
-            img = Image.open(path)
-        except:
-            print("Error: could not load image from path %s" % path)
-            img = None
-
-    return img
-
-
-# bug: If only one path, will throw exception
+# TODO: bug: If only one path, will throw exception
+# TODO: Does not change the preload index
 def preload_imgs():
+    """Immediately loads/downloads the first `2` images."""
+    global slideshow_imgs
+
     for i in range(2):
         try:
-            img = load_img(img_paths[i])
+            # img = load_img(img_paths[i])
+            img = load_img(slideshow_imgs[i].img_path)
         except:
             img = None
 
         if img:
-            pil_imgs[i] = img
-    # print("done preloading imgs")
+            # pil_imgs[i] = img
+            slideshow_imgs[i].pil_img = img
 
 
-def resize_img(img):
+def resize_img(img: Image.Image):
     img_w, img_h = img.size
     w_scale_factor = win_width/img_w
     h_scale_factor = win_height/img_h
 
 
-    # scale_factor = min(min(w_scale_factor, h_scale_factor), MAX_GROW)
-    scale_factor = min(w_scale_factor, h_scale_factor)
+    scale_factor = min(min(w_scale_factor, h_scale_factor), config.max_grow)
+    # scale_factor = min(w_scale_factor, h_scale_factor)
 
     # print("DEBUG", scale_factor, MAX_GROW)
 
@@ -371,32 +404,46 @@ def resize_img(img):
 
 # Define rotation through each image in the directory after WAIT_TIME seconds
 def update_img():
+    global slideshow_imgs
     global imgs_index
     global win_width, win_height
     global canvas
 
-    dprint("DEBUG: IN UPDATE IMG: imgs_index = " + str(imgs_index))
+    dprint("IN UPDATE IMG: imgs_index = " + str(imgs_index))
 
 
-    img_path = img_paths[imgs_index]
-    # PIL images list
-    pil_image = pil_imgs[imgs_index]
-    if not pil_image:
-        pil_image = load_img(img_path)
-        pil_imgs[imgs_index] = pil_image
+    # img_path = img_paths[imgs_index]
+    # # PIL images list
+    # pil_image = pil_imgs[imgs_index]
+    # if not pil_image:
+    #     pil_image = load_img(img_path)
+    #     pil_imgs[imgs_index] = pil_image
+    # else:
+    #     dprint("using already-loaded image")
+
+    # IF pil_img of SlideshowImage at imgs_i is None
+    if not slideshow_imgs[imgs_index].pil_img:
+        # pil_img of SlideshowImage at imgs_i <- loaded img_path
+        slideshow_imgs[imgs_index].pil_img = load_img(slideshow_imgs[imgs_index].img_path)
     else:
         dprint("using already-loaded image")
 
-    # Resize the PIL
-    if not pil_image:
-        print("ERROR, pil_img was None, img_path =", img_path)
+    # Resize the PIL image; throw error if there is no PIL image at the index.
+    # if not pil_image:
+    #     print("ERROR, pil_img was None, img_path =", img_path)
+    #     return
+
+    if not slideshow_imgs[imgs_index].pil_img:
+        print("ERROR, pil_img was None, img_path =", slideshow_imgs[imgs_index].img_path)
         return
 
-    pil_img_r = resize_img(pil_image)
+    pil_img_r = resize_img(slideshow_imgs[imgs_index].pil_img)
 
-    # Save tkinter img into global array for python reference counting
-    tk_image = ImageTk.PhotoImage(pil_img_r)
-    tk_imgs[imgs_index] = tk_image
+    # Save tkinter img into global array for python reference counting.
+    # tk_image = ImageTk.PhotoImage(pil_img_r)
+    # tk_imgs[imgs_index] = tk_image
+
+    slideshow_imgs[imgs_index].tk_img = ImageTk.PhotoImage(pil_img_r)
 
     canvas.delete("all")
 
@@ -407,23 +454,23 @@ def update_img():
         (win_width)/2,
         (win_height)/2,
         anchor = CENTER,
-        image = tk_image
+        image = slideshow_imgs[imgs_index].tk_img
     )
 
 
 def next_img():
     global imgs_index
     imgs_index += 1
-    if imgs_index >= len(img_paths)-1:
-        imgs_index -= len(img_paths)
+    if imgs_index >= len(slideshow_imgs)-1:
+        imgs_index -= len(slideshow_imgs)
     if imgs_index < 0:
-        imgs_index += len(img_paths)
+        imgs_index += len(slideshow_imgs)
 
     update_img()
     win.after(config.wait_time, next_img)
 
     preload_index = imgs_index + 1
-    if preload_index >= len(img_paths)-1:
+    if preload_index >= len(slideshow_imgs)-1:
         preload_index = 0
 
     win.after(100, async_preload_img(preload_index))
@@ -432,10 +479,10 @@ def next_img():
 def rotate_img_forward(event):
     global imgs_index
     imgs_index += 1
-    if imgs_index >= len(img_paths)-1:
-        imgs_index -= len(img_paths)
+    if imgs_index >= len(slideshow_imgs)-1:
+        imgs_index -= len(slideshow_imgs)
     if imgs_index < 0:
-        imgs_index += len(img_paths)
+        imgs_index += len(slideshow_imgs)
 
     update_img()
 
@@ -445,10 +492,10 @@ def rotate_img_back(event):
 
     imgs_index -= 1
 
-    if imgs_index >= len(img_paths)-1:
-        imgs_index -= len(img_paths)
+    if imgs_index >= len(slideshow_imgs)-1:
+        imgs_index -= len(slideshow_imgs)
     if imgs_index < 0:
-        imgs_index += len(img_paths)
+        imgs_index += len(slideshow_imgs)
 
     update_img()
 
@@ -473,7 +520,8 @@ def main():
     define_cache(config)
     init_window()
     get_paths(config.sources)
-    if not img_paths:
+    # if not img_paths:
+    if not slideshow_imgs:
         print("Error: no images found. Aborting program")
         print("(Maybe check the 'source' lines in your config file?)")
         sys.exit(1)
@@ -486,4 +534,5 @@ def main():
     win.mainloop()
 
 
-main()
+if __name__ == '__main__':
+    main()
