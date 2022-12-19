@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 #
 # bird-slideshow.py - a slideshow app, with network support and async
 #     image loading
@@ -21,7 +22,7 @@ class Config:
         """Responsible for handling all configurable-related items and actions.
         Defines configurable items as attributes of an instance of the Config object.
 
-        :param config_file: str - The name of the config file if there is one in the same 
+        :param config_file: str - The name of the config file if there is one in the same
         directory as the sildeshow script. Default is None
         """
 
@@ -161,7 +162,7 @@ def init_window():
 
 def toggle_fullscreen(event):
     """Switches between fullscreen and windowed.
-    
+
     :param event - keypress event
     """
     global is_full
@@ -171,7 +172,7 @@ def toggle_fullscreen(event):
 
 def quit_window(event):
     """Closes the window.
-    
+
     :param event - keypress event
     """
     win.destroy()
@@ -244,7 +245,7 @@ def get_http_paths(url):
 
 def get_img_tags(html):
     """Gets the html <img> tags, e.x. <img src="..." height=...>.
-    
+
     :param html: str - the full html text from the src url
 
     :returns img_tags: bs4.ResultSet - the list of html <img> tags
@@ -259,7 +260,7 @@ def get_img_tags(html):
 
 def get_file_paths(directory):
     """Gets the directorial image tags.
-    
+
     :param directory: str - the name of the directory from the Config source
 
     :returns img_tags: bs4.ResultSet - the list of html <img> tags
@@ -310,7 +311,7 @@ def load_img(path):
     """Takes an image path and turns it into a PIL image. If path is a remote
     (web) image, it will be downloaded into the cache directory from the config
     object.
-    
+
     :param path: str - the path of the image, whether it be from a remote image
     or from the local machine
     """
