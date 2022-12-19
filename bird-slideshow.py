@@ -17,6 +17,8 @@ from tkinter import *
 from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
+config_file_name = "bird-slideshow.cfg"
+
 class Config:
     def __init__(self, config_file=None):
         """Responsible for handling all configurable-related items and actions.
@@ -38,7 +40,7 @@ class Config:
 
         self.config_file = config_file
 
-        if self.config_file in os.listdir():
+        if self.config_file:
             self.read_config()
         else:
             self.input_config()
@@ -118,14 +120,53 @@ slideshow_imgs = []
 
 imgs_index = -1
 
-config = Config("options.txt")
+config = None
+
+def find_config_file():
+    """Finds the config file depending on what operating system is running this program."""
+
+    # Check windows user directory
+    if sys.platform == 'win32':
+        file_path = os.path.expandvars(r'%LOCALAPPDATA%\\' + config_file_name)
+        dprint(file_path)
+        dprint(os.path.exists(file_path))
+        if os.path.exists(file_path):
+            return file_path
+
+    # Check linux user config and system-wide directory
+    if sys.platform.startswith('linux'):
+        file_path = os.path.expandvars('$HOME/.config/' + config_file_name)
+        dprint(file_path)
+        if os.path.exists(file_path):
+            return file_path
+        file_path = '/etc/' + config_file_name
+        if os.path.exists(file_path):
+            return file_path
+
+    # Check CWD
+    file_path = config_file_name
+    if os.path.exists(file_path):
+        return file_path
+
+    # Check directory of script location
+    script_file = os.path.realpath(__file__)
+    dprint("script_file = " + script_file)
+    script_dir = os.path.dirname(script_file)
+    file_path = script_dir + os.sep + config_file_name
+    dprint(file_path)
+    if os.path.exists(file_path):
+        return file_path
+
+
+    # Didn't find it
+    return None
+
 
 win = None
 canvas = None
-is_full = config.start_full
-win_width = config.win_start_width
-win_height = config.win_start_height
-
+is_full = False
+win_width = 958
+win_height = 720
 
 # Make sure there is a cache directory to download images into.
 def define_cache(config):
@@ -185,17 +226,12 @@ def get_paths(sources):
 
     :param sources: list[str] - the list of sources from the Config object
     """
-    global img_paths
 
     for src in sources:
         if src.startswith("http"):
             get_http_paths(src)
         else:
             get_file_paths(src)
-
-    if debug:
-        for path in img_paths:
-            dprint("path=%s" % path)
 
 
 def get_http_paths(url):
@@ -515,8 +551,19 @@ def update_win_info():
 
 def main():
     global debug
+    global config
+    global is_full, win_width, win_height
+
     if "--debug" in sys.argv:
         debug = True
+
+    config_file = find_config_file()
+    print(config_file)
+    config = Config(config_file)
+
+    is_full = config.start_full
+    win_width = config.win_start_width
+    win_height = config.win_start_height
 
     define_cache(config)
     init_window()
