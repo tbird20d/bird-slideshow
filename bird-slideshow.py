@@ -13,11 +13,11 @@ import os
 import sys
 import requests
 from urllib.parse import urlparse
-from tkinter import *
+import tkinter
 from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
-config_file_name = "bird-slideshow.cfg"
+CONFIG_FILE = "bird-slideshow.cfg"
 
 class Config:
     def __init__(self, config_file=None):
@@ -98,11 +98,40 @@ class Config:
 
 
 class SlideshowImage:
-    def __init__(self, img_path=None, pil_img=None, tk_img=None):
+    def __init__(self, img_path=None):
         """Stores each image type in one object."""
         self.img_path = img_path
-        self.pil_img = pil_img
-        self.tk_img = tk_img
+        self.pil_img = None
+        self.tk_img = None
+
+
+    def load_pil_from_path(self):
+        """Takes an image path and turns it into a PIL image. If path is a remote
+        (web) image, it will be downloaded into the cache directory from the config
+        object.
+        """
+
+        global config
+
+        # print("loading image: " + path)
+        if self.img_path.startswith("http"):
+            filepath = download_img(config.cache_dir, self.img_path)
+            if filepath:
+                try:
+                    img = Image.open(filepath)
+                except:
+                    img = None
+            else:
+                print("Error: could not load remote image from path %s" % self.img_path)
+                img = None
+        else:
+            try:
+                img = Image.open(self.img_path)
+            except:
+                print("Error: could not load image from path %s" % self.img_path)
+                img = None
+
+        self.pil_img = img
 
 
 def dprint(msg):
@@ -112,22 +141,24 @@ def dprint(msg):
         print("DEBUG:", str(msg))
 
 # Globals
-# img_paths = []
-# pil_imgs = []
-# tk_imgs = []
-# ^v refactoring
 slideshow_imgs = []
-
-imgs_index = -1
-
 config = None
+imgs_index = -1
+preload_index = -1
+
+win = None
+canvas = None
+is_full = False
+win_width = 958
+win_height = 720
+
 
 def find_config_file():
     """Finds the config file depending on what operating system is running this program."""
 
     # Check windows user directory
     if sys.platform == 'win32':
-        file_path = os.path.expandvars(r'%LOCALAPPDATA%\\' + config_file_name)
+        file_path = os.path.expandvars(r'%LOCALAPPDATA%\\' + CONFIG_FILE)
         dprint(file_path)
         dprint(os.path.exists(file_path))
         if os.path.exists(file_path):
@@ -135,16 +166,16 @@ def find_config_file():
 
     # Check linux user config and system-wide directory
     if sys.platform.startswith('linux'):
-        file_path = os.path.expandvars('$HOME/.config/' + config_file_name)
+        file_path = os.path.expandvars('$HOME/.config/' + CONFIG_FILE)
         dprint(file_path)
         if os.path.exists(file_path):
             return file_path
-        file_path = '/etc/' + config_file_name
+        file_path = '/etc/' + CONFIG_FILE
         if os.path.exists(file_path):
             return file_path
 
     # Check CWD
-    file_path = config_file_name
+    file_path = CONFIG_FILE
     if os.path.exists(file_path):
         return file_path
 
@@ -152,7 +183,7 @@ def find_config_file():
     script_file = os.path.realpath(__file__)
     dprint("script_file = " + script_file)
     script_dir = os.path.dirname(script_file)
-    file_path = script_dir + os.sep + config_file_name
+    file_path = script_dir + os.sep + CONFIG_FILE
     dprint(file_path)
     if os.path.exists(file_path):
         return file_path
@@ -161,12 +192,6 @@ def find_config_file():
     # Didn't find it
     return None
 
-
-win = None
-canvas = None
-is_full = False
-win_width = 958
-win_height = 720
 
 # Make sure there is a cache directory to download images into.
 def define_cache(config):
@@ -183,15 +208,15 @@ def init_window():
     """
     global win, canvas
 
-    win = Tk()
+    win = tkinter.Tk()
     win.title("Slideshow")
     win.geometry(config.win_start_res)
-    canvas = Canvas(win,
+    canvas = tkinter.Canvas(win,
         width = win_width,
         height = win_height,
         bg='black'
     )
-    canvas.pack(fill=BOTH, expand=True)
+    canvas.pack(fill=tkinter.BOTH, expand=True)
 
     win.attributes("-fullscreen", config.start_full)
     win.bind("<F11>", toggle_fullscreen)
@@ -319,57 +344,32 @@ def get_file_paths(directory):
     os.chdir(saved_dir)
 
 
-def async_preload_img(preload_index):
-    """
-
-    TODO: refactor img_paths and pil_imgs into SlideshowImage object
+def async_preload_img():
+    """Increment preload_index then
 
     :param preload_index: int - ...
     """
-    # global img_paths, pil_imgs
+
     global slideshow_imgs
+    global preload_index
+    global win
+
+    if preload_index >= len(slideshow_imgs)-1:
+        dprint("IN ASYNC PRELOAD: done")
+        return
+    else:
+        preload_index += 1
+
 
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
-
-    # img_path = img_paths[preload_index]
-    # pil_image = pil_imgs[preload_index]
-    # if not pil_image:
-    #     pil_image = load_img(img_path)
-    #     pil_imgs[preload_index] = pil_image
 
     # IF pil_img of SlideshowImage at preload_i is None
     if not slideshow_imgs[preload_index].pil_img:
         # pil_img of SlideshowImage at preload_i <- loaded img_path
-        slideshow_imgs[preload_index].pil_img = load_img(slideshow_imgs[preload_index].img_path)
-
-
-def load_img(path):
-    """Takes an image path and turns it into a PIL image. If path is a remote
-    (web) image, it will be downloaded into the cache directory from the config
-    object.
-
-    :param path: str - the path of the image, whether it be from a remote image
-    or from the local machine
-    """
-    # print("loading image: " + path)
-    if path.startswith("http"):
-        filepath = download_img(config.cache_dir, path)
-        if filepath:
-            try:
-                img = Image.open(filepath)
-            except:
-                img = None
-        else:
-            print("Error: could not load remote image from path %s" % path)
-            img = None
+        slideshow_imgs[preload_index].load_pil_from_path()
     else:
-        try:
-            img = Image.open(path)
-        except:
-            print("Error: could not load image from path %s" % path)
-            img = None
-
-    return img
+        return
+    # win.after(100, async_preload_img())
 
 
 def download_img(cache_dir, img_link):
@@ -408,21 +408,26 @@ def download_img(cache_dir, img_link):
 # TODO: Does not change the preload index
 def preload_imgs():
     """Immediately loads/downloads the first `2` images."""
+
+    dprint("ENTERING PRELOAD_IMGS")
+
     global slideshow_imgs
+    global preload_index
 
     for i in range(2):
         try:
-            # img = load_img(img_paths[i])
-            img = load_img(slideshow_imgs[i].img_path)
+            slideshow_imgs[i].load_pil_from_path()
         except:
-            img = None
-
-        if img:
-            # pil_imgs[i] = img
-            slideshow_imgs[i].pil_img = img
+            print("IN preload_imgs(): could not load img at index '%s'" % i)
 
 
-def resize_img(img: Image.Image):
+    preload_index = i
+
+    # async_preload_img()
+    dprint("EXITING PRELOAD_IMGS")
+
+
+def resize_img(img):
     img_w, img_h = img.size
     w_scale_factor = win_width/img_w
     h_scale_factor = win_height/img_h
@@ -448,28 +453,13 @@ def update_img():
 
     dprint("IN UPDATE IMG: imgs_index = " + str(imgs_index))
 
-
-    # img_path = img_paths[imgs_index]
-    # # PIL images list
-    # pil_image = pil_imgs[imgs_index]
-    # if not pil_image:
-    #     pil_image = load_img(img_path)
-    #     pil_imgs[imgs_index] = pil_image
-    # else:
-    #     dprint("using already-loaded image")
-
-    # IF pil_img of SlideshowImage at imgs_i is None
+    # IF no pil_img at imgs_i of SlideshowImage:
     if not slideshow_imgs[imgs_index].pil_img:
-        # pil_img of SlideshowImage at imgs_i <- loaded img_path
-        slideshow_imgs[imgs_index].pil_img = load_img(slideshow_imgs[imgs_index].img_path)
+        slideshow_imgs[imgs_index].load_pil_from_path()
     else:
         dprint("using already-loaded image")
 
     # Resize the PIL image; throw error if there is no PIL image at the index.
-    # if not pil_image:
-    #     print("ERROR, pil_img was None, img_path =", img_path)
-    #     return
-
     if not slideshow_imgs[imgs_index].pil_img:
         print("ERROR, pil_img was None, img_path =", slideshow_imgs[imgs_index].img_path)
         return
@@ -477,9 +467,6 @@ def update_img():
     pil_img_r = resize_img(slideshow_imgs[imgs_index].pil_img)
 
     # Save tkinter img into global array for python reference counting.
-    # tk_image = ImageTk.PhotoImage(pil_img_r)
-    # tk_imgs[imgs_index] = tk_image
-
     slideshow_imgs[imgs_index].tk_img = ImageTk.PhotoImage(pil_img_r)
 
     canvas.delete("all")
@@ -490,12 +477,18 @@ def update_img():
     canvas.create_image(
         (win_width)/2,
         (win_height)/2,
-        anchor = CENTER,
+        anchor = tkinter.CENTER,
         image = slideshow_imgs[imgs_index].tk_img
     )
 
 
 def next_img():
+    """Updates the imgs_index, then calls update_img() to put the image to the screen.
+    After wait_time, it calls itself again, recursively.
+
+
+    """
+
     global imgs_index
     imgs_index += 1
     if imgs_index >= len(slideshow_imgs)-1:
@@ -505,16 +498,14 @@ def next_img():
 
     update_img()
     win.after(config.wait_time, next_img)
-
-    preload_index = imgs_index + 1
-    if preload_index >= len(slideshow_imgs)-1:
-        preload_index = 0
-
-    win.after(100, async_preload_img(preload_index))
+    async_preload_img()
 
 
 def rotate_img_forward(event):
+    """Increments imgs_index then calls update_img()"""
+
     global imgs_index
+
     imgs_index += 1
     if imgs_index >= len(slideshow_imgs)-1:
         imgs_index -= len(slideshow_imgs)
@@ -525,6 +516,8 @@ def rotate_img_forward(event):
 
 
 def rotate_img_back(event):
+    """Decrements imgs_index then calls update_img()"""
+
     global imgs_index
 
     imgs_index -= 1
@@ -541,24 +534,28 @@ def update_win_info():
     """Gets the current width and height of the window and updates global
     win_width and win_height.
     """
+
     global win_width, win_height
+    global win
+
     win_width = win.winfo_width()
     win_height = win.winfo_height()
+    dprint("win_width")
 
     win.after(1, update_win_info)
-
 
 
 def main():
     global debug
     global config
     global is_full, win_width, win_height
+    global win
 
     if "--debug" in sys.argv:
         debug = True
 
     config_file = find_config_file()
-    print(config_file)
+    dprint(config_file)
     config = Config(config_file)
 
     is_full = config.start_full
@@ -568,7 +565,7 @@ def main():
     define_cache(config)
     init_window()
     get_paths(config.sources)
-    # if not img_paths:
+
     if not slideshow_imgs:
         print("Error: no images found. Aborting program")
         print("(Maybe check the 'source' lines in your config file?)")
@@ -577,7 +574,9 @@ def main():
     print('Slideshow is running in another window...')
     preload_imgs()
 
+    # start updating images after mainloop starts
     win.after(100, next_img)
+    # win.after(200, async_preload_img())
 
     win.mainloop()
 
