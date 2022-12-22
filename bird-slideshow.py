@@ -4,22 +4,26 @@
 # bird-slideshow.py - a slideshow app, with network support and async
 #     image loading
 #
-# todo:
-#   add usage help
-
-debug = False
 
 import os
 import sys
-import requests
 from urllib.parse import urlparse
 import tkinter
+import requests
+import PIL
 from PIL import Image, ImageTk
 from bs4 import BeautifulSoup
 
+debug = False
 CONFIG_FILE = "bird-slideshow.cfg"
 
-class Config:
+TRUTH_TABLE = {"True": True, "False": False,
+               "1": True, "0": False,
+               "Yes": True, "No": False}
+
+
+# have pylint ignore too many instance attributes in this class
+class Config:  # pylint: disable=R0902
     def __init__(self, config_file=None):
         """Responsible for handling all configurable-related items and actions.
         Defines configurable items as attributes of an instance of the Config object.
@@ -63,17 +67,12 @@ class Config:
                 elif name == "wait_time":
                     self.wait_time = int(float(value) * 1000)
                 elif name == "start_full":
-                    self.start_full = {"True":True,
-                                       "False":False,
-                                       "1":True,
-                                       "0":False,
-                                       "Yes":True,
-                                       "No":False}[value.capitalize()]
+                    self.start_full = TRUTH_TABLE[value.capitalize()]
                 elif name == "default_resolution":
                     self.win_start_res = value
                 elif name == "max_grow":
                     self.max_grow = float(value)
-                elif name ==  "cache_dir":
+                elif name == "cache_dir":
                     self.cache_dir = value
                 else:
                     print("Unknown config option: '%s'" % name)
@@ -85,7 +84,8 @@ class Config:
             source = input("Source of images (directory or url): ")
             self.sources.append(source)
         self.wait_time = int(float(input("Wait time in seconds: ")) * 1000)
-        self.start_full = {"True":True, "False":False}[input("Start in fullscreen mode (True/False): ").capitalize()]
+        value = input("Start in fullscreen mode (True/False): ")
+        self.start_full = TRUTH_TABLE[value.capitalize()]
         self.win_start_res = input("Window resolution (in the form '{width}x{height}'): ")
         self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
@@ -104,7 +104,6 @@ class SlideshowImage:
         self.pil_img = None
         self.tk_img = None
 
-
     def load_pil_from_path(self):
         """Takes an image path and turns it into a PIL image. If path is a remote
         (web) image, it will be downloaded into the cache directory from the config
@@ -119,7 +118,12 @@ class SlideshowImage:
             if filepath:
                 try:
                     img = Image.open(filepath)
-                except:
+                except FileNotFoundError:
+                    print("Error: image for path %s did not download" % self.img_path)
+                    img = None
+                except PIL.UnidentifiedImageError:
+                    print("Error: data returned from download_img, for path",
+                          "'%s' is invalid (not an image)" % self.img_path)
                     img = None
             else:
                 print("Error: could not load remote image from path %s" % self.img_path)
@@ -127,8 +131,12 @@ class SlideshowImage:
         else:
             try:
                 img = Image.open(self.img_path)
-            except:
+            except FileNotFoundError:
                 print("Error: could not load image from path %s" % self.img_path)
+                img = None
+            except PIL.UnidentifiedImageError:
+                print("Error: data returned from download_img, for path",
+                      "'%s' is invalid (not an image)" % self.img_path)
                 img = None
 
         self.pil_img = img
@@ -139,6 +147,7 @@ def dprint(msg):
     global debug
     if debug:
         print("DEBUG:", str(msg))
+
 
 # Globals
 slideshow_imgs = []
@@ -188,18 +197,17 @@ def find_config_file():
     if os.path.exists(file_path):
         return file_path
 
-
     # Didn't find it
     return None
 
 
 # Make sure there is a cache directory to download images into.
-def define_cache(config):
+def define_cache(cfg):
     """Creates a cache folder if the name of the one in the Config object does
     not already exist.
     """
-    if not os.path.exists(config.cache_dir):
-        os.mkdir(config.cache_dir)
+    if not os.path.exists(cfg.cache_dir):
+        os.mkdir(cfg.cache_dir)
 
 
 def init_window():
@@ -211,11 +219,8 @@ def init_window():
     win = tkinter.Tk()
     win.title("Slideshow")
     win.geometry(config.win_start_res)
-    canvas = tkinter.Canvas(win,
-        width = win_width,
-        height = win_height,
-        bg='black'
-    )
+    canvas = tkinter.Canvas(win, width=win_width, height=win_height,
+                            bg='black')
     canvas.pack(fill=tkinter.BOTH, expand=True)
 
     win.attributes("-fullscreen", config.start_full)
@@ -226,7 +231,8 @@ def init_window():
     update_win_info()
 
 
-def toggle_fullscreen(event):
+# have pylint ignore unused arg 'event'
+def toggle_fullscreen(event):  # pylint: disable=W0613
     """Switches between fullscreen and windowed.
 
     :param event - keypress event
@@ -236,7 +242,8 @@ def toggle_fullscreen(event):
     win.attributes("-fullscreen", is_full)
 
 
-def quit_window(event):
+# have pylint ignore unused arg 'event'
+def quit_window(event):  # pylint: disable=W0613
     """Closes the window.
 
     :param event - keypress event
@@ -357,9 +364,8 @@ def async_preload_img():
     if preload_index >= len(slideshow_imgs)-1:
         dprint("IN ASYNC PRELOAD: done")
         return
-    else:
-        preload_index += 1
 
+    preload_index += 1
 
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
 
@@ -399,13 +405,14 @@ def download_img(cache_dir, img_link):
 
         return filepath
 
-    except:
-        print("Error", "Could not download %s" % img_link)
+    # have pylint ignore this too-general exception
+    # maybe later come back and catch some request-specific exceptions here
+    # for better diagnostics
+    except Exception:  # pylint: disable=W0703
+        print("Error: Could not download %s" % img_link)
         return ""
 
 
-# TODO: bug: If only one path, will throw exception
-# TODO: Does not change the preload index
 def preload_imgs():
     """Immediately loads/downloads the first `2` images."""
 
@@ -417,9 +424,8 @@ def preload_imgs():
     for i in range(2):
         try:
             slideshow_imgs[i].load_pil_from_path()
-        except:
+        except IndexError:
             print("IN preload_imgs(): could not load img at index '%s'" % i)
-
 
     preload_index = i
 
@@ -432,7 +438,6 @@ def resize_img(img):
     w_scale_factor = win_width/img_w
     h_scale_factor = win_height/img_h
 
-
     scale_factor = min(min(w_scale_factor, h_scale_factor), config.max_grow)
     # scale_factor = min(w_scale_factor, h_scale_factor)
 
@@ -442,6 +447,8 @@ def resize_img(img):
 
     if scale_factor < .95 or scale_factor > 1.05:
         return img.resize((int(img_w*scale_factor), int(img_h*scale_factor)))
+
+    return img
 
 
 # Define rotation through each image in the directory after WAIT_TIME seconds
@@ -474,12 +481,9 @@ def update_img():
     win_width = win.winfo_width()
     win_height = win.winfo_height()
 
-    canvas.create_image(
-        (win_width)/2,
-        (win_height)/2,
-        anchor = tkinter.CENTER,
-        image = slideshow_imgs[imgs_index].tk_img
-    )
+    canvas.create_image((win_width)/2, (win_height)/2,
+                        anchor=tkinter.CENTER,
+                        image=slideshow_imgs[imgs_index].tk_img)
 
 
 def next_img():
@@ -501,7 +505,8 @@ def next_img():
     async_preload_img()
 
 
-def rotate_img_forward(event):
+# have pylint ignore unused arg 'event'
+def rotate_img_forward(event):  # pylint: disable=W0613
     """Increments imgs_index then calls update_img()"""
 
     global imgs_index
@@ -515,7 +520,8 @@ def rotate_img_forward(event):
     update_img()
 
 
-def rotate_img_back(event):
+# have pylint ignore unused arg 'event'
+def rotate_img_back(event):  # pylint: disable=W0613
     """Decrements imgs_index then calls update_img()"""
 
     global imgs_index
