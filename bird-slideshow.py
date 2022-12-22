@@ -453,6 +453,9 @@ def resize_img(img):
 
 # Define rotation through each image in the directory after WAIT_TIME seconds
 def update_img():
+    """Takes the PIL img, resizes according to current screen dimenstions, creates tk img, and
+    adds the tk img to the tk canvas.
+    """
     global slideshow_imgs
     global imgs_index
     global win_width, win_height
