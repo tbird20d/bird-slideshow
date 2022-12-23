@@ -22,7 +22,8 @@ source= specifies the directory or website to read pictures from
 
 wait_time= specified the amount of time to wait between displaying pictures
 
-start_full= (can be 0 or 1 to indicate starting the 
+start_full= can be 0 or 1 (or True or False) to indicate starting the window
+  in full-screen mode.
 
 default_resolution= expressed as numbers separated by an 'x' (e.g. 640x480)
 
