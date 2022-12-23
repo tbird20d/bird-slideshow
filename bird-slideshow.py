@@ -5,6 +5,8 @@
 #     image loading
 #
 
+"""Implements a simple slideshow."""
+
 import os
 import sys
 from urllib.parse import urlparse
@@ -22,14 +24,26 @@ TRUTH_TABLE = {"True": True, "False": False,
                "Yes": True, "No": False}
 
 
+# Classes
 # have pylint ignore too many instance attributes in this class
 class Config:  # pylint: disable=R0902
-    def __init__(self, config_file=None):
-        """Responsible for handling all configurable-related items and actions.
-        Defines configurable items as attributes of an instance of the Config object.
+    """Responsible for handling all configurable-related items and actions.
 
-        :param config_file: str - The name of the config file if there is one in the same
-        directory as the sildeshow script. Default is None
+    Defines configurable items as attributes of an instance of the `Config`
+    object.
+    """
+
+    def __init__(self, config_file=None):
+        """Constructs a new instance of the `Config` object.
+
+        Args:
+            ::param:`config_file: str` - The name of the config file if there
+            is one (default is None)
+
+        Calls:
+            ::private_method:`_read_config()`
+            ::private_method:`_input_config()`
+            ::private_method:`_convert_win_res()`
         """
 
         # Default values
@@ -45,17 +59,20 @@ class Config:  # pylint: disable=R0902
         self.config_file = config_file
 
         if self.config_file:
-            self.read_config()
+            self._read_config()
         else:
-            self.input_config()
+            self._input_config()
 
-        self.convert_win_res()
+        self._convert_win_res()
 
-    def read_config(self):
-        """Read from config file (such as 'options.txt') and assign all the
-        config items in the file to the attributes.
+    def _read_config(self):
+        """Read from config file and assign all the config items in the file to the attributes.
+
+        Called by:
+            ::constructor:`self.__init__()`
         """
-        with open(self.config_file) as options_file:
+
+        with open(self.config_file, 'r') as options_file:
             for line in options_file:
                 if not line or line.startswith("#"):
                     continue
@@ -77,8 +94,13 @@ class Config:  # pylint: disable=R0902
                 else:
                     print("Unknown config option: '%s'" % name)
 
-    def input_config(self):
-        """Ask user to input all values for config items and assign them to attributes."""
+    def _input_config(self):
+        """Ask user to input all values for config items and assign them to attributes.
+
+        Called by:
+            ::constructor:`self.__init__()`
+        """
+
         num_sources = int(input("Number of image sources (from directories or webpages): "))
         for _ in range(num_sources):
             source = input("Source of images (directory or url): ")
@@ -90,24 +112,44 @@ class Config:  # pylint: disable=R0902
         self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
 
-    def convert_win_res(self):
-        """Converts the win_res string into win_width and win_height ints."""
+    def _convert_win_res(self):
+        """Converts the win_res string into win_width and win_height ints.
+
+        Called by:
+            ::constructor:`self.__init__()`
+        """
+
         width, height = self.win_start_res.split('x')
         self.win_start_width = int(width)
         self.win_start_height = int(height)
 
 
 class SlideshowImage:
-    def __init__(self, img_path=None):
-        """Stores each image type in one object."""
+    """Stores each image type in one object."""
+
+    def __init__(self, img_path):
+        """Constructs a new instance of `SlideshowImage`
+
+        Args:
+            ::param:`img_path: str` - the full image path
+        """
         self.img_path = img_path
         self.pil_img = None
         self.tk_img = None
 
     def load_pil_from_path(self):
-        """Takes an image path and turns it into a PIL image. If path is a remote
-        (web) image, it will be downloaded into the cache directory from the config
-        object.
+        """Takes an image path and turns it into a PIL image.
+
+        If path is a remote (web) image, it will be downloaded into the cache
+        directory defined in the global config object.
+
+        Called by:
+            ::function:`async_preload_img()`
+            ::function:`preload_imgs()`
+            ::function:`update_img()`
+
+        Calls:
+            ::function:`download_img()`
         """
 
         global config
@@ -142,14 +184,7 @@ class SlideshowImage:
         self.pil_img = img
 
 
-def dprint(msg):
-    """Debug print statement. Adds DEBUG to the front of a string and prints it."""
-    global debug
-    if debug:
-        print("DEBUG:", str(msg))
-
-
-# Globals
+# Global Variables
 slideshow_imgs = []
 config = None
 imgs_index = -1
@@ -162,8 +197,25 @@ win_width = 958
 win_height = 720
 
 
+# Global Functions
+def dprint(msg):
+    """Debug print statement. Adds DEBUG to the front of a string
+    and prints it.
+    """
+
+    global debug
+
+    if debug:
+        print("DEBUG:", str(msg))
+
+
 def find_config_file():
-    """Finds the config file depending on what operating system is running this program."""
+    """Finds the config file depending on what operating system is running
+    this program.
+
+    Called by:
+        ::__main__:`main()`
+    """
 
     # Check windows user directory
     if sys.platform == 'win32':
@@ -201,19 +253,38 @@ def find_config_file():
     return None
 
 
-# Make sure there is a cache directory to download images into.
 def define_cache(cfg):
-    """Creates a cache folder if the name of the one in the Config object does
-    not already exist.
+    """Creates a cache folder if the name of the one in the passed `Config`
+    object does not already exist.
+
+    Args:
+        ::param:`cfg: Config` - the `Config` object to get the cache
+        directory from
+
+    Called by:
+        ::__main__:`main()`
     """
+
     if not os.path.exists(cfg.cache_dir):
         os.mkdir(cfg.cache_dir)
 
 
 def init_window():
-    """Create tkinter window and pack canvas to it.\n
+    """Create tkinter window and pack canvas to it.
+
     Also binds key presses to functions.
+
+    Called by:
+        ::__main__:`main()`
+
+    Calls:
+        ::function:`toggle_fullscreen()`
+        ::function:`quit_window()`
+        ::function:`rotate_img_forward()`
+        ::function:`rotate_img_back()`
+        ::function:`update_win_info()`
     """
+
     global win, canvas
 
     win = tkinter.Tk()
@@ -235,7 +306,11 @@ def init_window():
 def toggle_fullscreen(event):  # pylint: disable=W0613
     """Switches between fullscreen and windowed.
 
-    :param event - keypress event
+    Args:
+        ::param:`event` - keypress event
+
+    Called by:
+        ::function:`init_window()`
     """
     global is_full
     is_full = not is_full
@@ -246,17 +321,28 @@ def toggle_fullscreen(event):  # pylint: disable=W0613
 def quit_window(event):  # pylint: disable=W0613
     """Closes the window.
 
-    :param event - keypress event
+    Args:
+        ::param:`event` - keypress event
+
+    Called by:
+        ::function:`init_window()`
     """
     win.destroy()
 
 
 def get_paths(sources):
-    """Takes each source in Config.sources and stores the path in global img_paths.
+    """Takes each source in passed sources and stores the path as an attribute
+    of `SlideshowImage` and appends to global list slideshow_imgs.
 
-    TODO: refactor img_paths into SlideshowImage object
+    Args:
+        ::param:`sources: list[str]` - the list of sources from the `Config` object
 
-    :param sources: list[str] - the list of sources from the Config object
+    Called by:
+        ::__main__:`main()`
+
+    Calls:
+        ::function:`get_http_paths()`
+        ::function:`get_file_paths()`
     """
 
     for src in sources:
@@ -267,11 +353,18 @@ def get_paths(sources):
 
 
 def get_http_paths(url):
-    """Gets the img_path from the html and appends it to the global img_paths list.
+    """Gets the <img> tags from the html, gets image links from the src
+    attribute of each tag, and creates new instances of `SlideshowImage` using
+    the links which are then appended to global list.
 
-    TODO: refactor img_paths into SlideshowImage object
+    Args:
+        ::param:`url: str` - comes from the `Config` source attribute
 
-    :param url: str - comes from the Config source
+    Called by:
+        ::function:`get_paths()`
+
+    Calls:
+        ::function:`get_img_tags()`
     """
     global slideshow_imgs
 
@@ -308,15 +401,21 @@ def get_http_paths(url):
         # img_paths.append(img_link)
         # pil_imgs.append(None)
         # tk_imgs.append(None)
-        slideshow_imgs.append(SlideshowImage(img_path=img_link))
+        slideshow_imgs.append(SlideshowImage(img_link))
 
 
 def get_img_tags(html):
-    """Gets the html <img> tags, e.x. <img src="..." height=...>.
+    """Gets all the html <img> tags (e.x. <img src="..." height=...>) from the
+    passed html text.
 
-    :param html: str - the full html text from the src url
+    Args:
+        ::param:`html: str` - the full html text from the src url
 
-    :returns img_tags: bs4.ResultSet - the list of html <img> tags
+    Returns:
+        ::return:`bs4.ResultSet` - a list of html <img> tags
+
+    Called by:
+        ::function:`get_http_paths()`
     """
     # Parse HTML Code
     soup = BeautifulSoup(html, 'html.parser')
@@ -327,12 +426,17 @@ def get_img_tags(html):
 
 
 def get_file_paths(directory):
-    """Gets the directorial image tags.
+    """Gets the paths of each image in the passed directory and creates new
+    instances of `SlideshowImage` using the paths which are then appended to
+    global list.
 
-    :param directory: str - the name of the directory from the Config source
+    Args:
+        ::param:`directory: str` - the name of the directory from the `Config` source
 
-    :returns img_tags: bs4.ResultSet - the list of html <img> tags
+    Called by:
+        ::function:`get_paths()`
     """
+
     global slideshow_imgs
 
     saved_dir = os.getcwd()
@@ -344,17 +448,19 @@ def get_file_paths(directory):
 
     for filename in img_filenames:
         path = os.path.abspath(filename)
-        # img_paths.append(path)
-        # pil_imgs.append(None)
-        # tk_imgs.append(None)
-        slideshow_imgs.append(SlideshowImage(img_path=path))
+        slideshow_imgs.append(SlideshowImage(path))
     os.chdir(saved_dir)
 
 
 def async_preload_img():
-    """Increment preload_index then
+    """Increment preload_index then load the PIL image of the `SlideshowImage`
+    at that preload_index.
 
-    :param preload_index: int - ...
+    Called by:
+        ::function:`next_img()`
+
+    Calls:
+        ::SlideshowImage_method:`load_pil_from_path()`
     """
 
     global slideshow_imgs
@@ -380,10 +486,14 @@ def async_preload_img():
 
 def download_img(cache_dir, img_link):
     """Downloads the remote (web) image to the cache directory specified in
-    :class:`Config` object.
+    `Config` object.
 
-    :param cache_dir: str = the directory to download the image to
-    :param img_link: str = the http path to the remote image
+    Args:
+        ::param:`cache_dir: str` - the directory to download the image to
+        ::param:`img_link: str` - the http path to the remote image
+
+    Called by:
+        ::SlideshowImage_method:`load_pil_from_path()`
     """
 
     dprint("In download_img (line 338) cache_dir = %s" % cache_dir)
@@ -414,7 +524,11 @@ def download_img(cache_dir, img_link):
 
 
 def preload_imgs():
-    """Immediately loads/downloads the first `2` images."""
+    """Immediately loads/downloads the first :hardcoded:`2` images.
+
+    Called by:
+        ::__main__:`main()`
+    """
 
     dprint("ENTERING PRELOAD_IMGS")
 
@@ -434,6 +548,18 @@ def preload_imgs():
 
 
 def resize_img(img):
+    """Takes a pil img and returns a resized pil img.
+
+    Args:
+        ::param:`img: Image.Image` - the pil img to be resized
+
+    Returns:
+        ::return:`Image.Image` - the resized pil img
+
+    Called by:
+        ::function:`update_img()`
+    """
+
     img_w, img_h = img.size
     w_scale_factor = win_width/img_w
     h_scale_factor = win_height/img_h
@@ -453,6 +579,18 @@ def resize_img(img):
 
 # Define rotation through each image in the directory after WAIT_TIME seconds
 def update_img():
+    """Takes the PIL img, resizes according to current screen dimenstions, creates tk img, and
+    adds the tk img to the tk canvas.
+
+    Called by:
+        ::function:`next_img()`
+        ::function:`rotate_img_forward()`
+        ::function:`rotate_img_back()`
+
+    Calls:
+        ::function:`resize_img()`
+    """
+
     global slideshow_imgs
     global imgs_index
     global win_width, win_height
@@ -488,9 +626,16 @@ def update_img():
 
 def next_img():
     """Updates the imgs_index, then calls update_img() to put the image to the screen.
-    After wait_time, it calls itself again, recursively.
+    It then schedules itself to be called again after wait_time amount of time.
 
+    Called by:
+        ::__main__:`main()`
+        ::function:`next_img()`
 
+    Calls:
+        ::function:`update_img()`
+        ::function:`next_img()`
+        ::function:`async_preload_img()`
     """
 
     global imgs_index
@@ -507,7 +652,17 @@ def next_img():
 
 # have pylint ignore unused arg 'event'
 def rotate_img_forward(event):  # pylint: disable=W0613
-    """Increments imgs_index then calls update_img()"""
+    """Increments imgs_index then calls update_img()
+
+    Args:
+        ::param:`event` - keypress event
+
+    Called by:
+        ::function:`init_window()`
+
+    Calls:
+        ::function:`update_img()`
+    """
 
     global imgs_index
 
@@ -522,7 +677,17 @@ def rotate_img_forward(event):  # pylint: disable=W0613
 
 # have pylint ignore unused arg 'event'
 def rotate_img_back(event):  # pylint: disable=W0613
-    """Decrements imgs_index then calls update_img()"""
+    """Decrements imgs_index then calls update_img()
+
+    Args:
+        ::param:`event` - keypress event
+
+    Called by:
+        ::function:`init_window()`
+
+    Calls:
+        ::function:`update_img()`
+    """
 
     global imgs_index
 
@@ -539,6 +704,13 @@ def rotate_img_back(event):  # pylint: disable=W0613
 def update_win_info():
     """Gets the current width and height of the window and updates global
     win_width and win_height.
+
+    Called by:
+        ::function:`init_window()`
+        ::function:`update_win_info()`
+
+    Calls:
+        ::function:`update_win_info()`
     """
 
     global win_width, win_height
@@ -552,6 +724,8 @@ def update_win_info():
 
 
 def main():
+    """Program main function"""
+
     global debug
     global config
     global is_full, win_width, win_height
