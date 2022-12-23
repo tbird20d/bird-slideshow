@@ -28,18 +28,18 @@ TRUTH_TABLE = {"True": True, "False": False,
 # have pylint ignore too many instance attributes in this class
 class Config:  # pylint: disable=R0902
     """Responsible for handling all configurable-related items and actions.
-    
+
     Defines configurable items as attributes of an instance of the `Config`
     object.
     """
-    
+
     def __init__(self, config_file=None):
         """Constructs a new instance of the `Config` object.
 
         Args:
             ::param:`config_file: str` - The name of the config file if there
             is one (default is None)
-        
+
         Calls:
             ::private_method:`_read_config()`
             ::private_method:`_input_config()`
@@ -65,10 +65,9 @@ class Config:  # pylint: disable=R0902
 
         self._convert_win_res()
 
-
     def _read_config(self):
         """Read from config file and assign all the config items in the file to the attributes.
-        
+
         Called by:
             ::constructor:`self.__init__()`
         """
@@ -95,10 +94,9 @@ class Config:  # pylint: disable=R0902
                 else:
                     print("Unknown config option: '%s'" % name)
 
-
     def _input_config(self):
         """Ask user to input all values for config items and assign them to attributes.
-        
+
         Called by:
             ::constructor:`self.__init__()`
         """
@@ -114,10 +112,9 @@ class Config:  # pylint: disable=R0902
         self.max_grow = float(input("Max growth factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
 
-
     def _convert_win_res(self):
         """Converts the win_res string into win_width and win_height ints.
-        
+
         Called by:
             ::constructor:`self.__init__()`
         """
@@ -125,7 +122,6 @@ class Config:  # pylint: disable=R0902
         width, height = self.win_start_res.split('x')
         self.win_start_width = int(width)
         self.win_start_height = int(height)
-
 
 
 class SlideshowImage:
@@ -141,10 +137,9 @@ class SlideshowImage:
         self.pil_img = None
         self.tk_img = None
 
-
     def load_pil_from_path(self):
         """Takes an image path and turns it into a PIL image.
-        
+
         If path is a remote (web) image, it will be downloaded into the cache
         directory defined in the global config object.
 
@@ -187,7 +182,6 @@ class SlideshowImage:
                 img = None
 
         self.pil_img = img
-
 
 
 # Global Variables
@@ -282,7 +276,7 @@ def init_window():
 
     Called by:
         ::__main__:`main()`
-    
+
     Calls:
         ::function:`toggle_fullscreen()`
         ::function:`quit_window()`
@@ -337,7 +331,7 @@ def quit_window(event):  # pylint: disable=W0613
 
 
 def get_paths(sources):
-    """Takes each source in passed sources and stores the path as an attribute 
+    """Takes each source in passed sources and stores the path as an attribute
     of `SlideshowImage` and appends to global list slideshow_imgs.
 
     Args:
@@ -368,7 +362,7 @@ def get_http_paths(url):
 
     Called by:
         ::function:`get_paths()`
-    
+
     Calls:
         ::function:`get_img_tags()`
     """
@@ -464,7 +458,7 @@ def async_preload_img():
 
     Called by:
         ::function:`next_img()`
-    
+
     Calls:
         ::SlideshowImage_method:`load_pil_from_path()`
     """
@@ -531,7 +525,7 @@ def download_img(cache_dir, img_link):
 
 def preload_imgs():
     """Immediately loads/downloads the first :hardcoded:`2` images.
-    
+
     Called by:
         ::__main__:`main()`
     """
@@ -596,6 +590,7 @@ def update_img():
     Calls:
         ::function:`resize_img()`
     """
+
     global slideshow_imgs
     global imgs_index
     global win_width, win_height
@@ -658,7 +653,7 @@ def next_img():
 # have pylint ignore unused arg 'event'
 def rotate_img_forward(event):  # pylint: disable=W0613
     """Increments imgs_index then calls update_img()
-    
+
     Args:
         ::param:`event` - keypress event
 
@@ -683,7 +678,7 @@ def rotate_img_forward(event):  # pylint: disable=W0613
 # have pylint ignore unused arg 'event'
 def rotate_img_back(event):  # pylint: disable=W0613
     """Decrements imgs_index then calls update_img()
-    
+
     Args:
         ::param:`event` - keypress event
 
