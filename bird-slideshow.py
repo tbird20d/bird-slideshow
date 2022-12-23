@@ -72,7 +72,7 @@ class Config:  # pylint: disable=R0902
             ::constructor:`self.__init__()`
         """
 
-        with open(self.config_file) as options_file:
+        with open(self.config_file, 'r') as options_file:
             for line in options_file:
                 if not line or line.startswith("#"):
                     continue
@@ -129,7 +129,7 @@ class SlideshowImage:
 
     def __init__(self, img_path):
         """Constructs a new instance of `SlideshowImage`
-        
+
         Args:
             ::param:`img_path: str` - the full image path
         """
@@ -724,6 +724,8 @@ def update_win_info():
 
 
 def main():
+    """Program main function"""
+
     global debug
     global config
     global is_full, win_width, win_height
