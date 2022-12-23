@@ -26,9 +26,11 @@ if [ -n "$1" ] ; then
     if [ "$1" = "-l" ] ; then
         echo "Running pylint to analyze bird-slideshow.py source"
         # C0103: invalid name (incorrect case for name class, etc.)
+        # C0209: could be an f-string
+        # W0602: global but no assignment
         # W0603: using the global statement
         # R0903: Too few public methods
-        pylint --disable=C0103,W0603,R0903 --good-names=sf bird-slideshow.py
+        pylint --disable=C0103,C0209,W0602,W0603,R0903 bird-slideshow.py
         exit $?
     fi
 fi

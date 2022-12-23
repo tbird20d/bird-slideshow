@@ -72,7 +72,7 @@ class Config:  # pylint: disable=R0902
             ::constructor:`self.__init__()`
         """
 
-        with open(self.config_file, 'r') as options_file:
+        with open(self.config_file, 'r', encoding='utf-8') as options_file:
             for line in options_file:
                 if not line or line.startswith("#"):
                     continue
@@ -369,7 +369,7 @@ def get_http_paths(url):
     global slideshow_imgs
 
     dprint("getting html for url %s" % url)
-    html = requests.get(url).text
+    html = requests.get(url, timeout=10).text
     dprint("html=\n'%s'" % html)
     tags = get_img_tags(html)
     dprint("tags=%s" % tags)
@@ -506,7 +506,7 @@ def download_img(cache_dir, img_link):
 
     try:
         print("Downloading img", img_link)
-        response = requests.get(img_link)
+        response = requests.get(img_link, timeout=10)
 
         # print("filepath =", filepath)
 
