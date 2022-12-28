@@ -149,14 +149,14 @@ class SlideshowImage:
             ::function:`update_img()`
 
         Calls:
-            ::function:`download_img()`
+            ::function:`download_web_img()`
         """
 
         global config
 
         # print("loading image: " + path)
         if self.img_path.startswith("http"):
-            filepath = download_img(config.cache_dir, self.img_path)
+            filepath = download_web_img(config.cache_dir, self.img_path)
             if filepath:
                 try:
                     img = Image.open(filepath)
@@ -164,7 +164,7 @@ class SlideshowImage:
                     print("Error: image for path %s did not download" % self.img_path)
                     img = None
                 except PIL.UnidentifiedImageError:
-                    print("Error: data returned from download_img, for path",
+                    print("Error: data returned from download_web_img, for path",
                           "'%s' is invalid (not an image)" % self.img_path)
                     img = None
             else:
@@ -177,7 +177,7 @@ class SlideshowImage:
                 print("Error: could not load image from path %s" % self.img_path)
                 img = None
             except PIL.UnidentifiedImageError:
-                print("Error: data returned from download_img, for path",
+                print("Error: data returned from download_web_img, for path",
                       "'%s' is invalid (not an image)" % self.img_path)
                 img = None
 
@@ -484,7 +484,7 @@ def async_preload_img():
     # win.after(100, async_preload_img())
 
 
-def download_img(cache_dir, img_link):
+def download_web_img(cache_dir, img_link):
     """Downloads the remote (web) image to the cache directory specified in
     `Config` object.
 
@@ -496,7 +496,7 @@ def download_img(cache_dir, img_link):
         ::SlideshowImage_method:`load_pil_from_path()`
     """
 
-    dprint("In download_img (line 338) cache_dir = %s" % cache_dir)
+    dprint("In download_web_img (line 338) cache_dir = %s" % cache_dir)
     filename = os.path.basename(img_link)
     filepath = cache_dir + os.sep + filename
 
