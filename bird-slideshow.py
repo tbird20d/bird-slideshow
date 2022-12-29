@@ -9,6 +9,7 @@
 
 import os
 import sys
+import subprocess
 from urllib.parse import urlparse
 import tkinter
 import requests
@@ -150,36 +151,37 @@ class SlideshowImage:
 
         Calls:
             ::function:`download_web_img()`
+            ::function:`download_ssh_img()`
         """
 
         global config
 
         # print("loading image: " + path)
         if self.img_path.startswith("http"):
+            img_src = "downloaded from web"
             filepath = download_web_img(config.cache_dir, self.img_path)
-            if filepath:
-                try:
-                    img = Image.open(filepath)
-                except FileNotFoundError:
-                    print("Error: image for path %s did not download" % self.img_path)
-                    img = None
-                except PIL.UnidentifiedImageError:
-                    print("Error: data returned from download_web_img, for path",
-                          "'%s' is invalid (not an image)" % self.img_path)
-                    img = None
-            else:
+            if not filepath:
+                print("Error: could not load remote image from path %s" % self.img_path)
+                img = None
+        elif self.img_path.startswith("ssh:"):
+            img_src = "downloaded from ssh"
+            filepath = download_ssh_img(config.cache_dir, self.img_path)
+            if not filepath:
                 print("Error: could not load remote image from path %s" % self.img_path)
                 img = None
         else:
-            try:
-                img = Image.open(self.img_path)
-            except FileNotFoundError:
-                print("Error: could not load image from path %s" % self.img_path)
-                img = None
-            except PIL.UnidentifiedImageError:
-                print("Error: data returned from download_web_img, for path",
-                      "'%s' is invalid (not an image)" % self.img_path)
-                img = None
+            img_src = "from local filesystem"
+            filepath = self.img_path
+
+        try:
+            img = Image.open(filepath)
+        except FileNotFoundError:
+            print("Error: could not load image from path %s" % filepath)
+            img = None
+        except PIL.UnidentifiedImageError:
+            print("Error: data %s, for path '%s' is invalid (not an image)" %
+                  (img_src, self.img_path))
+            img = None
 
         self.pil_img = img
 
@@ -341,13 +343,16 @@ def get_paths(sources):
         ::__main__:`main()`
 
     Calls:
-        ::function:`get_http_paths()`
         ::function:`get_file_paths()`
+        ::function:`get_http_paths()`
+        ::function:`get_ssh_paths()`
     """
 
     for src in sources:
         if src.startswith("http"):
             get_http_paths(src)
+        elif src.startswith("ssh"):
+            get_ssh_paths(src)
         else:
             get_file_paths(src)
 
@@ -425,6 +430,104 @@ def get_img_tags(html):
     return img_tags
 
 
+def ssh_path_elements(src_path):
+    """return parts of an ssh src path: user, password, server, path
+    """
+    if src_path.startswith("ssh:"):
+        src_path = src_path[4:]
+
+    if '@' in src_path:
+        user_and_password, server_and_path = src_path.split('@', 1)
+        if ":" in user_and_password:
+            user, password = user_and_password.split(':', 1)
+        else:
+            user = user_and_password
+            password = ""
+    else:
+        user = ""
+        password = ""
+        server_and_path = src_path
+
+    if ":" in server_and_path:
+        server, path = server_and_path.split(':', 1)
+    else:
+        print("Error: missing ':' in server and path portion of src path: '%s'" % server_and_path)
+        server = server_and_path
+        path = "/"
+
+    return (user, password, server, path)
+
+
+# have pylint ignore too many local vars and too many branches
+def get_ssh_paths(src_path):  # pylint: disable=R0914,R0912
+    """Gets a list of images from the indicated ssh source path, and creates
+    new instances of `SlideshowImage` using the links which are then appended
+    to global list.
+
+    Args:
+        ::param:`src_path: str` - comes from the `Config` source attribute
+
+    Called by:
+        ::function:`get_paths()`
+
+    Calls:
+        ::function:`ssh_path_elements()`
+    """
+    global slideshow_imgs
+
+    dprint("getting directory listing for %s" % src_path)
+    user, password, server, path = ssh_path_elements(src_path)
+    # build appropriate exec string based on src_path elements
+    if password:
+        cmd = ["sshpass", "-p", password]
+    else:
+        cmd = []
+
+    if user:
+        user_and_host = user + "@" + server
+    else:
+        user_and_host = server
+
+    # escape spaces in path
+    escaped_path = path.replace(" ", "\\ ")
+
+    cmd += ['/usr/bin/ssh', user_and_host, 'ls', '-F', escaped_path]
+
+    dprint("cmd=%s" % cmd)
+
+    try:
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, check=True, timeout=10)
+    except subprocess.CalledProcessError as e:
+        print("Error: Executing command '%s'\n%s" % (" ".join(cmd), e.stderr))
+        return
+
+    # parse the directory listing
+    dir_listing = p.stdout.decode("utf-8")
+    dprint("host directory listing=%s" % dir_listing)
+
+    if password:
+        user_and_pw = user + ":" + password
+    else:
+        user_and_pw = user
+
+    # scan directory listing from host, and convert into ssh_paths
+    lines = dir_listing.split("\n")
+    for line in lines:
+        if not line:
+            continue
+        if line.endswith("/"):
+            dprint("found directory '%s'" % line)
+            continue
+        if line.endswith("*"):
+            line = line[:-1]
+        ext = os.path.splitext(line)[1]
+        if ext in [".png", ".jpeg", ".JPG", ".jpg"]:
+            ssh_path = "ssh:%s@%s:%s/%s" % (user_and_pw, server, path, line)
+            slideshow_imgs.append(SlideshowImage(ssh_path))
+        else:
+            dprint("%s is not a picture" % line)
+
+
 def get_file_paths(directory):
     """Gets the paths of each image in the passed directory and creates new
     instances of `SlideshowImage` using the paths which are then appended to
@@ -492,6 +595,9 @@ def download_web_img(cache_dir, img_link):
         ::param:`cache_dir: str` - the directory to download the image to
         ::param:`img_link: str` - the http path to the remote image
 
+    Returns:
+        ::return:`str` - the path to the downloaded file in the cache
+
     Called by:
         ::SlideshowImage_method:`load_pil_from_path()`
     """
@@ -521,6 +627,68 @@ def download_web_img(cache_dir, img_link):
     except Exception:  # pylint: disable=W0703
         print("Error: Could not download %s" % img_link)
         return ""
+
+
+# have pylint ignore too many local variables
+def download_ssh_img(cache_dir, ssh_path):  # pylint: disable=R0914
+    """Downloads the remote (ssh) image to the cache directory specified in
+    `Config` object.
+
+    Args:
+        ::param:`cache_dir: str` - the directory to download the image to
+        ::param:`ssh_path: str` - the ssh path to the remote image
+
+    Returns:
+        ::return:`str` - the path to the downloaded file in the cache
+
+    Calls:
+        ::`ssh_path_elements`
+
+    Called by:
+        ::SlideshowImage_method:`load_pil_from_path()`
+    """
+    user, password, server, path = ssh_path_elements(ssh_path)
+
+    # build appropriate exec string based on ssh_path elements
+    if password:
+        cmd = ["sshpass", "-p", password]
+    else:
+        cmd = []
+
+    if user:
+        user_and_host = user + "@" + server
+    else:
+        user_and_host = server
+
+    # escape spaces in path
+    escaped_path = path.replace(" ", "\\ ")
+
+    # scp user@host:/path cache_dir
+    host_path = "%s:%s" % (user_and_host, escaped_path)
+    cache_path = "%s/%s" % (cache_dir, os.path.basename(path))
+    cmd += ['/usr/bin/scp', host_path, cache_path]
+
+    dprint("cmd=%s" % cmd)
+
+    dprint("Starting download process...")
+    try:
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           check=True, timeout=20)
+    except subprocess.CalledProcessError as e:
+        print("Error: Executing '%s'\n%s" % (" ".join(cmd), e.stderr))
+
+    dprint("done")
+    out = p.stdout.decode("utf-8")
+    err = p.stderr.decode("utf-8")
+    dprint("out=%s" % out)
+    dprint("err=%s" % err)
+
+    if os.path.exists(cache_path):
+        filepath = cache_path
+    else:
+        filepath = ""
+
+    return filepath
 
 
 def preload_imgs():

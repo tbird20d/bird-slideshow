@@ -17,7 +17,7 @@ Config File
 Here are the allowed fields in the config file (which is in a simple name=value
 text file format):
 
-source= specifies the directory or website to read pictures from
+source= specifies the directory, website, or ssh path to read pictures from
   This option can be specified multiple times in the config file.
 
 wait_time= specified the amount of time to wait between displaying pictures
