@@ -221,7 +221,7 @@ def find_config_file():
 
     # Check windows user directory
     if sys.platform == 'win32':
-        file_path = os.path.expandvars(r'%LOCALAPPDATA%\\' + CONFIG_FILE)
+        file_path = os.path.expandvars('%LOCALAPPDATA%\\' + CONFIG_FILE)
         dprint(file_path)
         dprint(os.path.exists(file_path))
         if os.path.exists(file_path):
