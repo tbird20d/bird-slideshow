@@ -479,7 +479,7 @@ def get_ssh_paths(src_path):  # pylint: disable=R0914,R0912
     user, password, server, path = ssh_path_elements(src_path)
     # build appropriate exec string based on src_path elements
     if password:
-        cmd = ["sshpass", "-p", password]
+        cmd = ["/usr/bin/sshpass", "-p", password]
     else:
         cmd = []
 
