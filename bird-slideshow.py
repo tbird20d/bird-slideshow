@@ -10,19 +10,18 @@
 import os
 import sys
 import subprocess
-from urllib.parse import urlparse
+from urllib.parse import urlparse, ParseResult
 import tkinter
 import requests
 import PIL
 from PIL import Image, ImageTk
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, ResultSet, Tag
 
-debug = False
-CONFIG_FILE = "bird-slideshow.cfg"
-
-TRUTH_TABLE = {"True": True, "False": False,
-               "1": True, "0": False,
-               "Yes": True, "No": False}
+_debug: bool = False
+CONFIG_FILE: str = "bird-slideshow.cfg"
+TRUTH_TABLE: dict[str, bool] = {"True": True, "False": False,
+                                "1": True, "0": False,
+                                "Yes": True, "No": False}
 
 
 # Classes
@@ -34,7 +33,8 @@ class Config:  # pylint: disable=R0902
     object.
     """
 
-    def __init__(self, config_file=None):
+    # have pyre ignore None casting to type annotated parameter
+    def __init__(self, config_file: str = None):  # pyre-ignore[9]
         """Constructs a new instance of the `Config` object.
 
         Args:
@@ -48,16 +48,16 @@ class Config:  # pylint: disable=R0902
         """
 
         # Default values
-        self.sources = []
-        self.wait_time = 5
-        self.start_full = False
-        self.win_start_res = "958x720"
-        self.win_start_width = 958
-        self.win_start_height = 720
-        self.max_grow = 4.0
-        self.cache_dir = "cache"
+        self.sources: list[str] = []
+        self.wait_time: int = 5
+        self.start_full: bool = False
+        self.win_start_res: str = "958x720"
+        self.win_start_width: int = 958
+        self.win_start_height: int = 720
+        self.max_grow: float = 4.0
+        self.cache_dir: str = "cache"
 
-        self.config_file = config_file
+        self.config_file: str = config_file
 
         if self.config_file:
             self._read_config()
@@ -128,15 +128,16 @@ class Config:  # pylint: disable=R0902
 class SlideshowImage:
     """Stores each image type in one object."""
 
-    def __init__(self, img_path):
+    def __init__(self, img_path: str):
         """Constructs a new instance of `SlideshowImage`
 
         Args:
             ::param:`img_path: str` - the full image path
         """
-        self.img_path = img_path
-        self.pil_img = None
-        self.tk_img = None
+        self.img_path: str = img_path
+        # have pyre ignore type annotated attributes initialized as None
+        self.pil_img: Image.Image = None  # pyre-ignore[8]
+        self.tk_img: ImageTk.PhotoImage = None  # pyre-ignore[8]
 
     def load_pil_from_path(self):
         """Takes an image path and turns it into a PIL image.
@@ -156,19 +157,20 @@ class SlideshowImage:
 
         global config
 
+        img_src: str = ''
+        img: Image.Image = None
+        filepath: str = ''
         # print("loading image: " + path)
         if self.img_path.startswith("http"):
             img_src = "downloaded from web"
             filepath = download_web_img(config.cache_dir, self.img_path)
             if not filepath:
                 print("Error: could not load remote image from path %s" % self.img_path)
-                img = None
         elif self.img_path.startswith("ssh:"):
             img_src = "downloaded from ssh"
             filepath = download_ssh_img(config.cache_dir, self.img_path)
             if not filepath:
                 print("Error: could not load remote image from path %s" % self.img_path)
-                img = None
         else:
             img_src = "from local filesystem"
             filepath = self.img_path
@@ -177,26 +179,25 @@ class SlideshowImage:
             img = Image.open(filepath)
         except FileNotFoundError:
             print("Error: could not load image from path %s" % filepath)
-            img = None
         except PIL.UnidentifiedImageError:
             print("Error: data %s, for path '%s' is invalid (not an image)" %
                   (img_src, self.img_path))
-            img = None
 
         self.pil_img = img
 
 
 # Global Variables
-slideshow_imgs = []
-config = None
-imgs_index = -1
-preload_index = -1
+# have pyre ignore type annotated variables initialized as None
+slideshow_imgs: list[SlideshowImage] = []
+config: Config = None  # pyre-ignore[9]
+imgs_index: int = -1
+preload_index: int = -1
 
-win = None
-canvas = None
-is_full = False
-win_width = 958
-win_height = 720
+win: tkinter.Tk = None  # pyre-ignore[9]
+canvas: tkinter.Canvas = None  # pyre-ignore[9]
+is_full: bool = False
+win_width: int = 958
+win_height: int = 720
 
 
 # Global Functions
@@ -205,15 +206,18 @@ def dprint(msg):
     and prints it.
     """
 
-    global debug
+    global _debug
 
-    if debug:
+    if _debug:
         print("DEBUG:", str(msg))
 
 
 def find_config_file():
     """Finds the config file depending on what operating system is running
     this program.
+
+    Returns:
+        ::return:`str | None` - either the path to the config file or None
 
     Called by:
         ::__main__:`main()`
@@ -255,7 +259,7 @@ def find_config_file():
     return None
 
 
-def define_cache(cfg):
+def define_cache(cfg: Config):
     """Creates a cache folder if the name of the one in the passed `Config`
     object does not already exist.
 
@@ -332,7 +336,7 @@ def quit_window(event):  # pylint: disable=W0613
     win.destroy()
 
 
-def get_paths(sources):
+def get_paths(sources: list[str]):
     """Takes each source in passed sources and stores the path as an attribute
     of `SlideshowImage` and appends to global list slideshow_imgs.
 
@@ -357,7 +361,7 @@ def get_paths(sources):
             get_file_paths(src)
 
 
-def get_http_paths(url):
+def get_http_paths(url: str):
     """Gets the <img> tags from the html, gets image links from the src
     attribute of each tag, and creates new instances of `SlideshowImage` using
     the links which are then appended to global list.
@@ -374,9 +378,9 @@ def get_http_paths(url):
     global slideshow_imgs
 
     dprint("getting html for url %s" % url)
-    html = requests.get(url, timeout=10).text
+    html: str = requests.get(url, timeout=10).text
     dprint("html=\n'%s'" % html)
-    tags = get_img_tags(html)
+    tags: ResultSet[Tag] = get_img_tags(html)
     dprint("tags=%s" % tags)
 
     if not tags:
@@ -388,12 +392,13 @@ def get_http_paths(url):
 
         # This does not handle srcset stuff
 
-        base_url = os.path.dirname(url)
+        base_url: str = os.path.dirname(url)
         dprint("base_url=%s" % base_url)
-        url_parts = urlparse(url)
-        url_prefix = url_parts.scheme + "://" + url_parts.netloc
+        url_parts: ParseResult = urlparse(url)
+        url_prefix: str = url_parts.scheme + "://" + url_parts.netloc
 
-        img_link = img_tag.get("src", None)
+        # have pyre ignore type annotated variable that could get `str | list[str] | None`
+        img_link: str = img_tag.get("src", None)  # pyre-ignore[9]
 
         if img_link.startswith("./"):
             img_link = url_prefix + img_link[1:]
@@ -403,13 +408,10 @@ def get_http_paths(url):
             img_link = url_prefix + "/" + img_link
 
         dprint("Adding %s to img_paths" % img_link)
-        # img_paths.append(img_link)
-        # pil_imgs.append(None)
-        # tk_imgs.append(None)
         slideshow_imgs.append(SlideshowImage(img_link))
 
 
-def get_img_tags(html):
+def get_img_tags(html: str) -> ResultSet[Tag]:
     """Gets all the html <img> tags (e.x. <img src="..." height=...>) from the
     passed html text.
 
@@ -417,7 +419,7 @@ def get_img_tags(html):
         ::param:`html: str` - the full html text from the src url
 
     Returns:
-        ::return:`bs4.ResultSet` - a list of html <img> tags
+        ::return:`ResultSet[Tag]` - a list of html <img> tags
 
     Called by:
         ::function:`get_http_paths()`
@@ -425,13 +427,22 @@ def get_img_tags(html):
     # Parse HTML Code
     soup = BeautifulSoup(html, 'html.parser')
     # find all images in URL
-    img_tags = soup.findAll('img')
+    img_tags: ResultSet[Tag] = soup.findAll('img')
     dprint("img_tags=%s" % img_tags)
     return img_tags
 
 
-def ssh_path_elements(src_path):
-    """return parts of an ssh src path: user, password, server, path
+def ssh_path_elements(src_path: str) -> tuple[str, str, str, str]:
+    """Gets the parts of an ssh src path: user, password, server, path
+
+    Args:
+        ::param:`src_path: str` - the source path
+
+    Returns:
+        ::return:`tuple[str, str, str, str]` - the user, password, server, and path
+
+    Called by:
+        ::function:`get_ssh_paths()`
     """
     if src_path.startswith("ssh:"):
         src_path = src_path[4:]
@@ -459,7 +470,7 @@ def ssh_path_elements(src_path):
 
 
 # have pylint ignore too many local vars and too many branches
-def get_ssh_paths(src_path):  # pylint: disable=R0914,R0912
+def get_ssh_paths(src_path: str):  # pylint: disable=R0914,R0912
     """Gets a list of images from the indicated ssh source path, and creates
     new instances of `SlideshowImage` using the links which are then appended
     to global list.
@@ -528,7 +539,7 @@ def get_ssh_paths(src_path):  # pylint: disable=R0914,R0912
             dprint("%s is not a picture" % line)
 
 
-def get_file_paths(directory):
+def get_file_paths(directory: str):
     """Gets the paths of each image in the passed directory and creates new
     instances of `SlideshowImage` using the paths which are then appended to
     global list.
@@ -542,15 +553,15 @@ def get_file_paths(directory):
 
     global slideshow_imgs
 
-    saved_dir = os.getcwd()
+    saved_dir: str = os.getcwd()
     os.chdir(directory)
-    img_filenames = os.listdir()
+    img_filenames: list[str] = os.listdir()
 
     if not img_filenames:
         print("Error: no image files found in directory %s" % directory)
 
     for filename in img_filenames:
-        path = os.path.abspath(filename)
+        path: str = os.path.abspath(filename)
         slideshow_imgs.append(SlideshowImage(path))
     os.chdir(saved_dir)
 
@@ -587,13 +598,13 @@ def async_preload_img():
     # win.after(100, async_preload_img())
 
 
-def download_web_img(cache_dir, img_link):
+def download_web_img(cache_dir: str, img_link: str) -> str:
     """Downloads the remote (web) image to the cache directory specified in
     `Config` object.
 
     Args:
-        ::param:`cache_dir: str` - the directory to download the image to
-        ::param:`img_link: str` - the http path to the remote image
+        :param:`cache_dir: str` - the directory to download the image to
+        :param:`img_link: str` - the http path to the remote image
 
     Returns:
         ::return:`str` - the path to the downloaded file in the cache
@@ -603,8 +614,8 @@ def download_web_img(cache_dir, img_link):
     """
 
     dprint("In download_web_img (line 338) cache_dir = %s" % cache_dir)
-    filename = os.path.basename(img_link)
-    filepath = cache_dir + os.sep + filename
+    filename: str = os.path.basename(img_link)
+    filepath: str = cache_dir + os.sep + filename
 
     if os.path.exists(filepath):
         print("Using img", filename, "from cache directory")
@@ -630,23 +641,24 @@ def download_web_img(cache_dir, img_link):
 
 
 # have pylint ignore too many local variables
-def download_ssh_img(cache_dir, ssh_path):  # pylint: disable=R0914
+def download_ssh_img(cache_dir: str, ssh_path: str) -> str:  # pylint: disable=R0914
     """Downloads the remote (ssh) image to the cache directory specified in
     `Config` object.
 
     Args:
-        ::param:`cache_dir: str` - the directory to download the image to
-        ::param:`ssh_path: str` - the ssh path to the remote image
+        :param:`cache_dir: str` - the directory to download the image to
+        :param:`ssh_path: str` - the ssh path to the remote image
 
     Returns:
         ::return:`str` - the path to the downloaded file in the cache
 
-    Calls:
-        ::`ssh_path_elements`
-
     Called by:
         ::SlideshowImage_method:`load_pil_from_path()`
+
+    Calls:
+        ::function:`ssh_path_elements()`
     """
+
     user, password, server, path = ssh_path_elements(ssh_path)
 
     # build appropriate exec string based on ssh_path elements
@@ -696,6 +708,9 @@ def preload_imgs():
 
     Called by:
         ::__main__:`main()`
+
+    Calls:
+        ::SlideshowImage_method:`load_pil_from_path()`
     """
 
     dprint("ENTERING PRELOAD_IMGS")
@@ -715,7 +730,7 @@ def preload_imgs():
     dprint("EXITING PRELOAD_IMGS")
 
 
-def resize_img(img):
+def resize_img(img: Image.Image) -> Image.Image:
     """Takes a pil img and returns a resized pil img.
 
     Args:
@@ -777,7 +792,7 @@ def update_img():
         print("ERROR, pil_img was None, img_path =", slideshow_imgs[imgs_index].img_path)
         return
 
-    pil_img_r = resize_img(slideshow_imgs[imgs_index].pil_img)
+    pil_img_r: Image.Image = resize_img(slideshow_imgs[imgs_index].pil_img)
 
     # Save tkinter img into global array for python reference counting.
     slideshow_imgs[imgs_index].tk_img = ImageTk.PhotoImage(pil_img_r)
@@ -886,7 +901,7 @@ def update_win_info():
 
     win_width = win.winfo_width()
     win_height = win.winfo_height()
-    dprint("win_width")
+    # dprint("win_width")
 
     win.after(1, update_win_info)
 
@@ -894,15 +909,15 @@ def update_win_info():
 def main():
     """Program main function"""
 
-    global debug
+    global _debug
     global config
     global is_full, win_width, win_height
     global win
 
     if "--debug" in sys.argv:
-        debug = True
+        _debug = True
 
-    config_file = find_config_file()
+    config_file: str = find_config_file()
     dprint(config_file)
     config = Config(config_file)
 
