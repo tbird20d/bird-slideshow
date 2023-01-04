@@ -15,11 +15,11 @@ import tkinter
 import requests
 import PIL
 from PIL import Image, ImageTk
-from bs4 import BeautifulSoup, ResultSet, Tag
+from bs4 import BeautifulSoup, ResultSet
 
 _debug: bool = False
 CONFIG_FILE: str = "bird-slideshow.cfg"
-TRUTH_TABLE: dict[str, bool] = {"True": True, "False": False,
+TRUTH_TABLE: dict = {"True": True, "False": False,
                                 "1": True, "0": False,
                                 "Yes": True, "No": False}
 
@@ -48,7 +48,7 @@ class Config:  # pylint: disable=R0902
         """
 
         # Default values
-        self.sources: list[str] = []
+        self.sources: list = []
         self.wait_time: int = 5
         self.start_full: bool = False
         self.win_start_res: str = "958x720"
@@ -188,7 +188,7 @@ class SlideshowImage:
 
 # Global Variables
 # have pyre ignore type annotated variables initialized as None
-slideshow_imgs: list[SlideshowImage] = []
+slideshow_imgs: list = []
 config: Config = None  # pyre-ignore[9]
 imgs_index: int = -1
 preload_index: int = -1
@@ -336,7 +336,7 @@ def quit_window(event):  # pylint: disable=W0613
     win.destroy()
 
 
-def get_paths(sources: list[str]):
+def get_paths(sources: list):
     """Takes each source in passed sources and stores the path as an attribute
     of `SlideshowImage` and appends to global list slideshow_imgs.
 
@@ -380,7 +380,7 @@ def get_http_paths(url: str):
     dprint("getting html for url %s" % url)
     html: str = requests.get(url, timeout=10).text
     dprint("html=\n'%s'" % html)
-    tags: ResultSet[Tag] = get_img_tags(html)
+    tags: ResultSet = get_img_tags(html)
     dprint("tags=%s" % tags)
 
     if not tags:
@@ -411,7 +411,7 @@ def get_http_paths(url: str):
         slideshow_imgs.append(SlideshowImage(img_link))
 
 
-def get_img_tags(html: str) -> ResultSet[Tag]:
+def get_img_tags(html: str) -> ResultSet:
     """Gets all the html <img> tags (e.x. <img src="..." height=...>) from the
     passed html text.
 
@@ -427,12 +427,12 @@ def get_img_tags(html: str) -> ResultSet[Tag]:
     # Parse HTML Code
     soup = BeautifulSoup(html, 'html.parser')
     # find all images in URL
-    img_tags: ResultSet[Tag] = soup.findAll('img')
+    img_tags: ResultSet = soup.findAll('img')
     dprint("img_tags=%s" % img_tags)
     return img_tags
 
 
-def ssh_path_elements(src_path: str) -> tuple[str, str, str, str]:
+def ssh_path_elements(src_path: str) -> tuple:
     """Gets the parts of an ssh src path: user, password, server, path
 
     Args:
@@ -555,7 +555,7 @@ def get_file_paths(directory: str):
 
     saved_dir: str = os.getcwd()
     os.chdir(directory)
-    img_filenames: list[str] = os.listdir()
+    img_filenames: list = os.listdir()
 
     if not img_filenames:
         print("Error: no image files found in directory %s" % directory)
