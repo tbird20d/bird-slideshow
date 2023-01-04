@@ -397,8 +397,7 @@ def get_http_paths(url: str):
         url_parts: ParseResult = urlparse(url)
         url_prefix: str = url_parts.scheme + "://" + url_parts.netloc
 
-        # have pyre ignore type annotated variable that could get `str | list[str] | None`
-        img_link: str = img_tag.get("src", None)  # pyre-ignore[9]
+        img_link: str = img_tag.get("src", None)
 
         if img_link.startswith("./"):
             img_link = url_prefix + img_link[1:]
