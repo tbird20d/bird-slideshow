@@ -158,8 +158,7 @@ class SlideshowImage:
         global config
 
         img_src: str = ''
-        # have pyre ignore type annotated variable insitialized as None
-        img: Image.Image = None  # pyre-ignore[9]
+        img: Image.Image = None
         filepath: str = ''
         # print("loading image: " + path)
         if self.img_path.startswith("http"):
