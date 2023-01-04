@@ -33,7 +33,8 @@ class Config:  # pylint: disable=R0902
     object.
     """
 
-    def __init__(self, config_file: str = None):
+    # have pyre ignore None casting to type annotated parameter
+    def __init__(self, config_file: str = None):  # pyre-ignore[9]
         """Constructs a new instance of the `Config` object.
 
         Args:
@@ -134,8 +135,9 @@ class SlideshowImage:
             ::param:`img_path: str` - the full image path
         """
         self.img_path: str = img_path
-        self.pil_img: Image.Image = None
-        self.tk_img: ImageTk.PhotoImage = None
+        # have pyre ignore type annotated attributes initialized as None
+        self.pil_img: Image.Image = None  # pyre-ignore[8]
+        self.tk_img: ImageTk.PhotoImage = None  # pyre-ignore[8]
 
     def load_pil_from_path(self):
         """Takes an image path and turns it into a PIL image.
@@ -156,7 +158,8 @@ class SlideshowImage:
         global config
 
         img_src: str = ''
-        img: Image.Image = None
+        # have pyre ignore type annotated variable insitialized as None
+        img: Image.Image = None  # pyre-ignore[9]
         filepath: str = ''
         # print("loading image: " + path)
         if self.img_path.startswith("http"):
@@ -185,13 +188,14 @@ class SlideshowImage:
 
 
 # Global Variables
+# have pyre ignore type annotated variables initialized as None
 slideshow_imgs: list[SlideshowImage] = []
-config: Config = None
+config: Config = None  # pyre-ignore[9]
 imgs_index: int = -1
 preload_index: int = -1
 
-win: tkinter.Tk = None
-canvas: tkinter.Canvas = None
+win: tkinter.Tk = None  # pyre-ignore[9]
+canvas: tkinter.Canvas = None  # pyre-ignore[9]
 is_full: bool = False
 win_width: int = 958
 win_height: int = 720
@@ -394,7 +398,8 @@ def get_http_paths(url: str):
         url_parts: ParseResult = urlparse(url)
         url_prefix: str = url_parts.scheme + "://" + url_parts.netloc
 
-        img_link: str = img_tag.get("src", None)
+        # have pyre ignore type annotated variable that could get `str | list[str] | None`
+        img_link: str = img_tag.get("src", None)  # pyre-ignore[9]
 
         if img_link.startswith("./"):
             img_link = url_prefix + img_link[1:]
@@ -897,7 +902,7 @@ def update_win_info():
 
     win_width = win.winfo_width()
     win_height = win.winfo_height()
-    dprint("win_width")
+    # dprint("win_width")
 
     win.after(1, update_win_info)
 
