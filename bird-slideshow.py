@@ -88,7 +88,7 @@ class Config:  # pylint: disable=R0902
                     self.start_full = TRUTH_TABLE[value.capitalize()]
                 elif name == "default_resolution":
                     self.win_start_res = value
-                elif name == "max_grow":
+                elif name == "max_size":
                     self.max_size = float(value)
                 elif name == "cache_dir":
                     self.cache_dir = value
@@ -110,7 +110,7 @@ class Config:  # pylint: disable=R0902
         value = input("Start in fullscreen mode (True/False): ")
         self.start_full = TRUTH_TABLE[value.capitalize()]
         self.win_start_res = input("Window resolution (in the form '{width}x{height}'): ")
-        self.max_size = float(input("Max growth factor for image resizing (2 = 200%): "))
+        self.max_size = float(input("Max size factor for image resizing (2 = 200%): "))
         self.cache_dir = input("Directory for cache: ")
 
     def _convert_win_res(self):
@@ -748,9 +748,9 @@ def resize_img(img: Image.Image) -> Image.Image:
     h_scale_factor: float = win_height/img_h
 
     # Picks the minimum between the vertical or horizontal scale factor, then takes the minimum
-    # between the scale factor and the max_grow configuration setting.
+    # between the scale factor and the max_size configuration setting.
     scale_factor = min(min(w_scale_factor, h_scale_factor), config.max_size)
-    # print(f"DEBUG: scale_factor = {scale_factor}, config.max_grow = {config.max_grow}")
+    # print(f"DEBUG: scale_factor = {scale_factor}, config.max_size = {config.max_size}")
 
     if scale_factor < .95 or scale_factor > 1.05:
         return img.resize((int(img_w*scale_factor), int(img_h*scale_factor)))
