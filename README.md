@@ -27,14 +27,14 @@ start_full= can be 0 or 1 (or True or False) to indicate starting the window
 
 default_resolution= expressed as numbers separated by an 'x' (e.g. 640x480)
 
-max_size= specifies the maximum size a picture can be as a percentage of its
+max_resize= specifies the maximum size a picture can be as a percentage of its
   original size
   This is a float (e.g. 2.3, 1.0, etc.).  The value '2.0' would limit the
   enlargment to 200%.  This is generally used to keep small pictures from
   becoming too pixelated when upscaling them, although technically one could
   set this to a percentage smaller than 100% (with a value less than 1.0).
   Images are automaticaly downscaled if they are too big for the current
-  window, and upscaled ([or resized] to a factor of 'max_size') when they
+  window, and upscaled ([or resized] to a factor of 'max_resize') when they
   are smaller then the current window.
 
 cache_dir= specifies the directory to be used for caching images
