@@ -201,6 +201,7 @@ preload_index: int = -1
 win: tkinter.Tk = None  # pyre-ignore[9]
 canvas: tkinter.Canvas = None  # pyre-ignore[9]
 is_full: bool = False
+is_paused: bool = False
 win_width: int = 958
 win_height: int = 720
 
@@ -308,8 +309,10 @@ def init_window():
     win.attributes("-fullscreen", config.start_full)
     win.bind("<F11>", toggle_fullscreen)
     win.bind("<Escape>", quit_window)
+    win.bind("q", quit_window)
     win.bind("<Right>", rotate_img_forward)
     win.bind("<Left>", rotate_img_back)
+    win.bind("p", toggle_pause)
     update_win_info()
 
 
@@ -326,6 +329,21 @@ def toggle_fullscreen(event):  # pylint: disable=W0613
     global is_full
     is_full = not is_full
     win.attributes("-fullscreen", is_full)
+
+# have pylint ignore unused arg 'event'
+def toggle_pause(event):  # pylint: disable=W0613
+    """Switches between fullscreen and windowed.
+
+    Args:
+        ::param:`event` - keypress event
+
+    Called by:
+        ::function:`init_window()`
+    """
+    global is_paused
+
+    is_paused = not is_paused
+    update_img()
 
 
 # have pylint ignore unused arg 'event'
@@ -780,6 +798,7 @@ def update_img():
     global imgs_index
     global win_width, win_height
     global canvas
+    global is_paused
 
     dprint("IN UPDATE IMG: imgs_index = " + str(imgs_index))
 
@@ -808,6 +827,15 @@ def update_img():
                         anchor=tkinter.CENTER,
                         image=slideshow_imgs[imgs_index].tk_img)
 
+    if is_paused:
+        # show paused status
+        # Put text on a black background for readability
+        canvas.create_rectangle((win_width)/2-50, 36, (win_width)/2+50, 64, fill="black")
+        canvas.create_text((win_width)/2, 50, anchor=tkinter.CENTER,
+                           text=" paused ", fill="white",
+                           font=('Helvetica 15 bold'))
+        canvas.pack()
+
 
 def next_img():
     """Updates the imgs_index, then calls update_img() to put the image to the screen.
@@ -824,13 +852,17 @@ def next_img():
     """
 
     global imgs_index
-    imgs_index += 1
-    if imgs_index >= len(slideshow_imgs)-1:
-        imgs_index -= len(slideshow_imgs)
-    if imgs_index < 0:
-        imgs_index += len(slideshow_imgs)
+    global is_paused
 
-    update_img()
+    if not is_paused:
+        imgs_index += 1
+        if imgs_index >= len(slideshow_imgs)-1:
+            imgs_index -= len(slideshow_imgs)
+        if imgs_index < 0:
+            imgs_index += len(slideshow_imgs)
+
+        update_img()
+
     win.after(config.wait_time, next_img)
     async_preload_img()
 

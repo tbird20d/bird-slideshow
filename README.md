@@ -39,3 +39,12 @@ max_resize= specifies the maximum size a picture can be as a percentage of its
 
 cache_dir= specifies the directory to be used for caching images
 
+Operation
+---------
+While the slideshow is running, you may type the follow keys:
+ - left arrow = go back one image
+ - right arrow = go forward one image
+ - F11 = toggle fullscreen mode
+ - p = toggle pause
+ - ESC or q = quit the program
+
