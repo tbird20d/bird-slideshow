@@ -20,8 +20,8 @@ from bs4 import BeautifulSoup, ResultSet
 _debug: bool = False
 CONFIG_FILE: str = "bird-slideshow.cfg"
 TRUTH_TABLE: dict = {"True": True, "False": False,
-                                "1": True, "0": False,
-                                "Yes": True, "No": False}
+                     "1": True, "0": False,
+                     "Yes": True, "No": False}
 
 
 # Classes
@@ -90,10 +90,8 @@ class Config:  # pylint: disable=R0902
                     self.win_start_res = value
                 elif name == "max_resize":
                     value = float(value)
-                    if value < 0.05:
-                        value = 0.05
-                    if value > 50:
-                        value = 50
+                    # constrain to between 0.05 and 50
+                    value = min(max(value, 0.05), 50)
                     self.max_resize = value
                 elif name == "cache_dir":
                     self.cache_dir = value
@@ -329,6 +327,7 @@ def toggle_fullscreen(event):  # pylint: disable=W0613
     global is_full
     is_full = not is_full
     win.attributes("-fullscreen", is_full)
+
 
 # have pylint ignore unused arg 'event'
 def toggle_pause(event):  # pylint: disable=W0613
