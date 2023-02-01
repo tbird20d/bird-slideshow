@@ -55,6 +55,7 @@ class Config:  # pylint: disable=R0902
         self.win_start_width: int = 958
         self.win_start_height: int = 720
         self.max_resize: float = 4.0
+        self.max_preload: int = 2
         self.cache_dir: str = "cache"
 
         self.config_file: str = config_file
@@ -88,6 +89,8 @@ class Config:  # pylint: disable=R0902
                     self.start_full = TRUTH_TABLE[value.capitalize()]
                 elif name == "default_resolution":
                     self.win_start_res = value
+                elif name == "max_preload":
+                    self.max_preload = int(value)
                 elif name == "max_resize":
                     value = float(value)
                     # constrain to between 0.05 and 50
@@ -138,32 +141,25 @@ class SlideshowImage:
             ::param:`img_path: str` - the full image path
         """
         self.img_path: str = img_path
+        self.local_filepath: str = ""
         # have pyre ignore type annotated attributes initialized as None
         self.pil_img: Image.Image = None  # pyre-ignore[8]
         self.tk_img: ImageTk.PhotoImage = None  # pyre-ignore[8]
 
-    def load_pil_from_path(self):
-        """Takes an image path and turns it into a PIL image.
+    def get_image_local(self):
+        """Gets an image file from image path into local filesystem.  If
+        the image is remote (web or ssh), it is downloaded to the cache
+        and a cache filepath is returned.
 
-        If path is a remote (web) image, it will be downloaded into the cache
-        directory defined in the global config object.
+        Returns:
+            ::return:`filepath, img_src` - the path to the image file, and
+              a string describing the image source
 
         Called by:
-            ::function:`async_preload_img()`
-            ::function:`preload_imgs()`
-            ::function:`update_img()`
-
-        Calls:
-            ::function:`download_web_img()`
-            ::function:`download_ssh_img()`
+            ::method:'load_pil_from_path()'
         """
-
         global config
 
-        img_src: str = ''
-        img: Image.Image = None
-        filepath: str = ''
-        # print("loading image: " + path)
         if self.img_path.startswith("http"):
             img_src = "downloaded from web"
             filepath = download_web_img(config.cache_dir, self.img_path)
@@ -178,15 +174,48 @@ class SlideshowImage:
             img_src = "from local filesystem"
             filepath = self.img_path
 
+        return filepath, img_src
+
+    def load_pil_from_path(self):
+        """Takes an image path and turns it into a PIL image.
+
+        Downloads the image file into cache if necessary, then reads the
+        image file into a PIL image in memory.
+
+        Called by:
+            ::function:`async_preload_img()`
+            ::function:`preload_imgs()`
+            ::function:`update_img()`
+
+        Calls:
+            ::function:`download_web_img()`
+            ::function:`download_ssh_img()`
+        """
+
+        global config
+        global load_count
+
+        if self.pil_img:
+            return
+
+        # if image is not already downloaded, put it into local cache
+        img_src = "from previous download"
+        if not self.local_filepath:
+            filepath, img_src = self.get_image_local()
+            self.local_filepath = filepath
+
+        img: Image.Image = None
         try:
-            img = Image.open(filepath)
+            img = Image.open(self.local_filepath)
         except FileNotFoundError:
-            print("Error: could not load image from path %s" % filepath)
+            print("Error: could not load image from path %s" % self.local_filepath)
         except PIL.UnidentifiedImageError:
             print("Error: data %s, for path '%s' is invalid (not an image)" %
                   (img_src, self.img_path))
 
-        self.pil_img = img
+        if img:
+            self.pil_img = img
+            load_count += 1
 
 
 # Global Variables
@@ -195,6 +224,7 @@ slideshow_imgs: list = []
 config: Config = None  # pyre-ignore[9]
 imgs_index: int = -1
 preload_index: int = -1
+load_count: int = 0
 
 win: tkinter.Tk = None  # pyre-ignore[9]
 canvas: tkinter.Canvas = None  # pyre-ignore[9]
@@ -600,13 +630,16 @@ def async_preload_img():
 
     global slideshow_imgs
     global preload_index
+    global load_count
     global win
 
-    if preload_index >= len(slideshow_imgs)-1:
+    if load_count >= len(slideshow_imgs):
         dprint("IN ASYNC PRELOAD: done")
         return
 
     preload_index += 1
+    if preload_index >= len(slideshow_imgs)-1:
+       preload_index = 0
 
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
 
@@ -698,7 +731,14 @@ def download_ssh_img(cache_dir: str, ssh_path: str) -> str:  # pylint: disable=R
 
     # scp user@host:/path cache_dir
     host_path = "%s:%s" % (user_and_host, escaped_path)
-    cache_path = "%s/%s" % (cache_dir, os.path.basename(path))
+    filename = os.path.basename(path)
+    cache_path = "%s/%s" % (cache_dir, filename)
+
+    # if already in cache, don't download again
+    if os.path.exists(cache_path):
+        print("Using img", filename, "from cache directory")
+        return cache_path
+
     cmd += ['/usr/bin/scp', host_path, cache_path]
 
     dprint("cmd=%s" % cmd)
@@ -734,12 +774,13 @@ def preload_imgs():
         ::SlideshowImage_method:`load_pil_from_path()`
     """
 
-    dprint("ENTERING PRELOAD_IMGS")
-
+    global config
     global slideshow_imgs
     global preload_index
 
-    for i in range(2):
+    dprint("ENTERING PRELOAD_IMGS")
+
+    for i in range(config.max_preload):
         try:
             slideshow_imgs[i].load_pil_from_path()
         except IndexError:
