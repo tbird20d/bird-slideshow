@@ -18,11 +18,11 @@ from PIL import Image, ImageTk
 from bs4 import BeautifulSoup, ResultSet
 
 _debug: bool = False
+VERSION = (0, 7, 0)
 CONFIG_FILE: str = "bird-slideshow.cfg"
 TRUTH_TABLE: dict = {"True": True, "False": False,
                      "1": True, "0": False,
                      "Yes": True, "No": False}
-
 
 # Classes
 # have pylint ignore too many instance attributes in this class
@@ -949,9 +949,16 @@ def main():
 
     if "--debug" in sys.argv:
         _debug = True
+        sys.argv.remove("--debug")
 
     config_file: str = find_config_file()
     dprint(config_file)
+
+    if "-V" in sys.argv or "--version" in sys.argv:
+        print("bird-slideshow v%d.%d.%d" % VERSION)
+        print("Using config file: %s" % config_file)
+        sys.exit(0)
+
     config = Config(config_file)
 
     is_full = config.start_full
