@@ -18,11 +18,12 @@ from PIL import Image, ImageTk
 from bs4 import BeautifulSoup, ResultSet
 
 _debug: bool = False
-VERSION = (0, 7, 0)
+VERSION: tuple = (0, 7, 0)
 CONFIG_FILE: str = "bird-slideshow.cfg"
 TRUTH_TABLE: dict = {"True": True, "False": False,
                      "1": True, "0": False,
                      "Yes": True, "No": False}
+
 
 # Classes
 # have pylint ignore too many instance attributes in this class
@@ -57,6 +58,7 @@ class Config:  # pylint: disable=R0902
         self.max_resize: float = 4.0
         self.max_preload: int = 2
         self.cache_dir: str = "cache"
+        self.small_memory: bool = False
 
         self.config_file: str = config_file
 
@@ -98,6 +100,8 @@ class Config:  # pylint: disable=R0902
                     self.max_resize = value
                 elif name == "cache_dir":
                     self.cache_dir = value
+                elif name == "small_memory":
+                    self.small_memory = TRUTH_TABLE[value.capitalize()]
                 else:
                     print("Unknown config option: '%s'" % name)
 
@@ -206,6 +210,7 @@ class SlideshowImage:
 
         img: Image.Image = None
         try:
+            dprint("loading PIL image for file %s" % self.local_filepath)
             img = Image.open(self.local_filepath)
         except FileNotFoundError:
             print("Error: could not load image from path %s" % self.local_filepath)
@@ -639,7 +644,7 @@ def async_preload_img():
 
     preload_index += 1
     if preload_index >= len(slideshow_imgs)-1:
-       preload_index = 0
+        preload_index = 0
 
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
 
@@ -672,7 +677,7 @@ def download_web_img(cache_dir: str, img_link: str) -> str:
     filepath: str = cache_dir + os.sep + filename
 
     if os.path.exists(filepath):
-        print("Using img", filename, "from cache directory")
+        dprint("Using img " + filename + " from cache directory")
         return filepath
 
     try:
@@ -736,7 +741,7 @@ def download_ssh_img(cache_dir: str, ssh_path: str) -> str:  # pylint: disable=R
 
     # if already in cache, don't download again
     if os.path.exists(cache_path):
-        print("Using img", filename, "from cache directory")
+        dprint("Using img " + filename + " from cache directory")
         return cache_path
 
     cmd += ['/usr/bin/scp', host_path, cache_path]
@@ -895,6 +900,7 @@ def next_img():
     global is_paused
 
     if not is_paused:
+        last_img = slideshow_imgs[imgs_index]
         imgs_index += 1
         if imgs_index >= len(slideshow_imgs)-1:
             imgs_index -= len(slideshow_imgs)
@@ -902,6 +908,11 @@ def next_img():
             imgs_index += len(slideshow_imgs)
 
         update_img()
+
+        if config.small_memory:
+            dprint("Unloading img: %s" % last_img.img_path)
+            last_img.tk_img = None
+            last_img.pil_img = None
 
     win.after(config.wait_time, next_img)
     async_preload_img()
