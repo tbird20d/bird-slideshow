@@ -10,21 +10,25 @@ Usage:
   tagging <command> [options] [filenames] [tags]
 
 Commands:
-  tag                       Add one or multiple tags to the specified file(s).
-                              ex. 'tagging tag sparrow.png bird trees sky png'
-  tags                      List the tags of the specifed file(s).
-                              ex. 'tagging tags sparrow.png'
-  merge                     Delete first specified tag and merge into second specified tag.
-                              ex. 'tagging merge brid bird'
-  files                     List the files tagged with the specified tag(s).
-                              ex. 'tagging files bird sky'
-                              ex. 'tagging files bird and sky'
-                              ex. 'tagging files (bird or sky) and not trees'
+  help <cmd> Show help for command <cmd>
+  init       Initialize tagger database in the current directory
+  tag ...    Add one or multiple tags to the specified file(s).
+               ex. 'tagging tag sparrow.png bird trees sky png'
+  tags       List the tags of the specifed file(s).
+               ex. 'tagging tags sparrow.png'
+  files      List the files tagged with the specified tag(s).
+               ex. 'tagging files bird sky'
+               ex. 'tagging files bird and sky'
+               ex. 'tagging files (bird or sky) and not trees'
+
+Features planned to be added later:
+  merge      Delete first specified tag and merge into second specified tag.
+               ex. 'tagging merge brid bird'
 
 General Options:
-  -h, --help                Display this help menu.
-  --tags="[tags]"           Used when tagging multiple files with the same tag(s).
-                              ex. 'tagging tag --tags="no-transparency jpg" *.jpg'
+  -h, --help      Display this help menu.
+  --tags="[tags]" Used when tagging multiple files with the same tag(s).
+                    ex. 'tagging tag --tags="no-transparency jpg" *.jpg'
 """
     )
 
