@@ -1,0 +1,19 @@
+Here are some notes about the 'tagger' feature of bird-slideshow.
+
+tagger is a command line tools that allows you to manage tags for
+files on your local filesystem.
+
+It is modeled after the program 'tmsu'.
+
+The idea is that it will eventually allow you to select the set of
+files to display using tags, instead of using directory paths.
+
+To do items for tagger:
+ - support minimal 'tagger' command line options:
+   - tagger help - show help overview
+   - tagger help [command] - show help for a specific command
+   - tagger init - create sqlite database in current directory
+   - tagger tag [file] [tag1] [tag2] ... - tag file with the indicated tags
+   - tagger tag --tags="[tag1] [tag2] ..." [file1] [file2] - tag multiple files with the indicated tags
+   - tagger files [tag expression] - show list of files that match the tag expression
+   - tagger tags - list all registered tags
