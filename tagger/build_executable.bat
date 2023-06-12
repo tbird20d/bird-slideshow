@@ -1,0 +1,1 @@
+pyinstaller tagger.py --onefile

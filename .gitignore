@@ -2,4 +2,7 @@
 *.jpeg
 *.png
 
+test.py
+
 cache/
+.vscode/
