@@ -11,7 +11,7 @@ _debug = False
 def dprint(*args, **kwargs):
     """Debug print wrapper."""
     if _debug:
-        colored_debug: str = "\u001b[38;5;208mDEBUG:\u001b[0m  "
+        colored_debug = "\u001b[38;5;208mDEBUG:\u001b[0m  "
         if "sep" not in kwargs:
             kwargs["sep"] = f"\n{colored_debug}"
         print(f"{colored_debug}" + str(*args[:1]), *args[1:], **kwargs)
@@ -21,7 +21,7 @@ def eprint(*args, **kwargs):
     """Error print wrapper."""
     if "end" not in kwargs:
         kwargs["end"] = "\n\n"
-    colored_error: str = "\u001b[31;1mERROR:\u001b[0m  "
+    colored_error = "\u001b[31;1mERROR:\u001b[0m  "
     if "sep" not in kwargs:
         kwargs["sep"] = f"\n{colored_error}"
     print(f"\n{colored_error}" + str(*args[:1]), *args[1:], **kwargs)
@@ -91,7 +91,7 @@ def find_db_path() -> str | None:
     return None
 
 
-def gen_db_path(is_system: bool = False) -> str:
+def gen_db_path(is_system=False) -> str:
     """Gets the path to the .db file."""
     dprint(f"Generating db file path...")
 
@@ -171,7 +171,7 @@ COMMIT;
 
 
 # TODO Milestone 2
-def add_tag_to_file(tag: str, file: str) -> None:
+def add_tag_to_file(tag, file) -> None:
     dprint(f"Adding {tag=} to {file=}...")
     with sqlite3.connect(find_db_path()) as con:
         cur = con.cursor()
@@ -203,17 +203,17 @@ def add_tag_to_file(tag: str, file: str) -> None:
 
 
 # TODO Milestone 5
-def add_tags_to_file(tags: list[str], file: str) -> None:
+def add_tags_to_file(tags, file) -> None:
     ...
 
 
 # TODO Milestone 6
-def add_tag_to_files(tag: str, files: list[str]) -> None:
+def add_tag_to_files(tag, files) -> None:
     ...
 
 
 # TODO Milestone 7
-def add_tags_to_files(tags: list[str], files: list[str]) -> None:
+def add_tags_to_files(tags, files) -> None:
     ...
 
 
