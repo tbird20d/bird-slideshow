@@ -1,6 +1,7 @@
 import os
 import sys
 import sqlite3
+import datetime as dt
 from traceback import print_tb
 from contextlib import closing
 
@@ -27,15 +28,20 @@ def eprint(*args, **kwargs):
     print(f"\n{colored_error}" + str(*args[:1]), *args[1:], **kwargs)
 
 
+def error_out(rcode, *args, **kwargs):
+    eprint(*args, **kwargs)
+    sys.exit(rcode)
+
+
 def display_usage():  # TODO: Update to conform to new design doc
     """Displays top-level usage doc."""
     print(
         """
 Usage:
-  tagger {command} [options] [filenames] [tags]
+  tagger <command> [options] [filenames] [tags]
 
 Commands:
-  help {cmd}  . Show help for command <cmd> (Cur only this usage doc)
+  help <cmd>  . Show help for command <cmd> (Cur only this usage doc)
   init  . . . . Initialize tagger database at default location
   tag . . . . . Attach one or multiple tags to the specified file(s).
                   'tagger tag {tag1} [{tag2} ...] [-f | --files | --]
@@ -60,6 +66,8 @@ Features planned to be added later:
 
 General Options:
   -h, --help  . Display this usage menu.
+      --debug . Run program in debug mode.
+  -s  . . . . . If using linux, run db path generation in system mode.
         """
     )
 
@@ -117,8 +125,7 @@ def init_database(is_system=False) -> None:
     """
     dprint("Verifying db does not already exist...")
     if find_db_path():
-        eprint("Cannot initialize database when one already exists.")
-        sys.exit(1)
+        error_out(1, "Cannot initialize database when one already exists.")
     path = gen_db_path(is_system)
     had_error = False
 
@@ -137,14 +144,18 @@ CREATE TABLE IF NOT EXISTS files(
     name TEXT NOT NULL,
     directory TEXT NOT NULL,
     fingerprint TEXT,
-    mod_time DATETIME,
-    size INTEGER,
+    mod_time TIMESTAMP,
+    size REAL,
     is_dir BOOLEAN
 );
-CREATE TABLE IF NOT EXISTS fileTag(
-    file_id INTEGER,
-    tag_id INTEGER,
-    PRIMARY KEY(file_id, tag_id)
+CREATE TABLE IF NOT EXISTS tag_files(
+    tag_id INTEGER NOT NULL,
+    file_id INTEGER NOT NULL,
+    PRIMARY KEY(tag_id, file_id),
+    FOREIGN KEY (tag_id) REFERENCES tags (tag_id)
+        ON DELETE CASCADE ON UPDATE NO ACTION,
+    FOREIGN KEY (file_id) REFERENCES files (file_id)
+        ON DELETE CASCADE ON UPDATE NO ACTION
 );
 COMMIT;
                 """
@@ -156,7 +167,7 @@ COMMIT;
             had_error = True
 
     if not had_error:
-        print("Database created successfully")
+        print("Database created successfully.")
         sys.exit(0)
     else:
         try:
@@ -171,91 +182,144 @@ COMMIT;
 
 
 # TODO Milestone 2
-def add_tag_to_file(tag, file) -> None:
-    dprint(f"Adding {tag=} to {file=}...")
+def add_tags_to_files(tags, files: list) -> None:
+    """Add the specified tags to the specified files in the database."""
+
+    assert find_db_path(), "Should have caught if there is no db path in `tag()`"
+
+    dprint(f"Adding {tags=} to {files=}...")
+
     with sqlite3.connect(find_db_path()) as con:
         cur = con.cursor()
         try:
-            # Insert tag into database:
-            dprint("Checking if tag is already in database...")
-            if not cur.execute(
-                "SELECT name FROM tags WHERE name = (?)", (tag,)
-            ).fetchone():
-                cur.execute("INSERT INTO tags(name) VALUES(?)", (tag,))
-                dprint(f"{tag} inserted into table tags.")
-            else:
-                dprint(
-                    "Tag was already found in database:",
-                    "Tags{}".format(
-                        cur.execute(
-                            "SELECT * FROM tags WHERE name = (?)", (tag,)
+            tag_ids = []
+            file_ids = []
+
+            # Insert tags into database:
+            for tag in tags:
+                dprint(f"Checking if {tag} is already in database...")
+                if not cur.execute(
+                    "SELECT name FROM tags WHERE name = (?)", (tag,)
+                ).fetchone():
+                    cur.execute("INSERT INTO tags(name) VALUES (?)", (tag,))
+                    dprint(f"{tag} inserted into table tags.")
+                    tag_ids.append(cur.lastrowid)
+                else:
+                    dprint(
+                        f"Tag {tag} was already found in database:",
+                        "Tags{}".format(
+                            cur.execute(
+                                "SELECT * FROM tags WHERE name = (?)", (tag,)
+                            ).fetchone()
+                        ),
+                        sep=" ",
+                    )
+                    tag_ids.append(
+                        *cur.execute(
+                            "SELECT tag_id FROM tags WHERE name = (?)", (tag,)
                         ).fetchone()
-                    ),
-                    sep=" ",
+                    )
+
+            # Insert files into database:
+            for file in files:
+                # Check that the file exists:
+                if not os.path.exists(file):
+                    print(f"Could not find {file}.")
+                    files.remove(file)
+                    continue
+
+                file_abspath = os.path.abspath(file)
+                file_basename = os.path.basename(file_abspath)
+                file_dirname = os.path.dirname(file_abspath)
+
+                dprint(
+                    f"{file_abspath = }",
+                    f"{file_basename = }",
+                    f"{file_dirname = }",
+                    sep="\n\t",
                 )
-            # Insert file into database:
-            dprint()
+
+                dprint(f"Checking if {file_abspath} is already in database...")
+                # TODO Check basename as well as directory
+                if not cur.execute(
+                    "SELECT name FROM files WHERE name = (?)", (file_basename,)
+                ).fetchone():
+                    cur.execute(
+                        "INSERT INTO files(name, directory, fingerprint, mod_time, size, is_dir) VALUES(?, ?, ?, ?, ?, ?)",
+                        (
+                            file_basename,
+                            file_dirname,
+                            "0",  # TODO
+                            dt.datetime.now(),
+                            os.stat(file_abspath).st_size / (1024**2),
+                            os.path.isdir(file_abspath),
+                        ),
+                    )
+                    dprint(f"{file_basename} inserted into table files.")
+                    file_ids.append(cur.lastrowid)
+                else:
+                    dprint(
+                        f"File {file_basename} was already found in database:",
+                        "Files{}".format(
+                            cur.execute(
+                                "SELECT * FROM files WHERE name = (?)", (file_basename,)
+                            ).fetchone()
+                        ),
+                        sep=" ",
+                    )
+                    file_ids.append(
+                        *cur.execute(
+                            "SELECT file_id FROM files WHERE name = (?)",
+                            (file_basename,),
+                        ).fetchone()
+                    )
+
+            dprint(f"{tag_ids = }, {file_ids = }")
+
+            # Connect files to tags in fileTags table in database:
+            for tag_id in tag_ids:
+                for file_id in file_ids:
+                    cur.execute(
+                        "INSERT INTO tag_files(tag_id, file_id) VALUES (?, ?)",
+                        (tag_id, file_id),
+                    )
 
         except Exception as err:
             eprint(err, "Traceback:")
+
             print_tb(err.__traceback__)
             eprint("SQLite syntax incorrect.")
 
 
-# TODO Milestone 5
-def add_tags_to_file(tags, file) -> None:
-    ...
-
-
-# TODO Milestone 6
-def add_tag_to_files(tag, files) -> None:
-    ...
-
-
-# TODO Milestone 7
-def add_tags_to_files(tags, files) -> None:
-    ...
-
-
 def tag() -> None:
-    """Parse the tag(s) and file(s) in argv and call
-    the appropriate function.
-    """
+    """Parse the tag(s) and file(s) in argv and add them to the database."""
     if not find_db_path():
-        eprint("Cannot add tags to an uninitialized database.")
-        sys.exit(1)
+        error_out(1, "Cannot add tags to an uninitialized database.")
 
-    arg_str = ""
+    # Separates the args after 'tagger tag' ([tags] [--, -f, --files] [files])
+    tags = []
+    files = []
+    in_tags = False
+    in_files = False
     for arg in sys.argv:
-        if "tag" not in arg:
-            arg_str += arg + " "
-    arg_str = arg_str.strip()
-    # dprint(f"{arg_str=}")
+        if arg == "tag":
+            in_tags = True
+            continue
+        if arg in ["--", "-f", "--files"]:
+            in_tags = False
+            in_files = True
+            continue
+        if in_tags:
+            tags.append(arg)
+        if in_files:
+            files.append(arg)
 
-    tags_str = ""
-    files_str = ""
-    if " -f " in arg_str:
-        tags_str, files_str = arg_str.split(" -f ")
-        dprint(f"{tags_str=}, sep='-f', {files_str=}")
-    elif " --files " in arg_str:
-        tags_str, files_str = arg_str.split(" --files ")
-        dprint(f"{tags_str=}, sep='--files', {files_str=}")
-    elif " -- " in arg_str:
-        tags_str, files_str = arg_str.split(" -- ")
-        dprint(f"{tags_str=}, sep='--', {files_str=}")
+    if not tags:
+        error_out(1, "No tags specified.")
+    if not files:
+        error_out(1, "No files specified.")
 
-    tags = [tag for tag in tags_str.split()]
-    files = [file for file in files_str.split()]
-    dprint(f"{tags=}, {files=}")
-
-    if len(tags) == 1 and len(files) == 1:
-        add_tag_to_file(tags[0], files[0])
-    elif len(tags) > 1 and len(files) == 1:
-        add_tags_to_file(tags, files[0])
-    elif len(tags) == 1 and len(files) > 1:
-        add_tag_to_files(tags[0], files)
-    else:
-        add_tags_to_files(tags, files)
+    add_tags_to_files(tags, files)
 
 
 def main():
@@ -266,6 +330,11 @@ def main():
     if "--debug" in sys.argv:
         sys.argv.remove("--debug")
         _debug = True
+
+    # System mode option handling
+    if "-s" in sys.argv:
+        sys.argv.remove("-s")
+        use_system_config = True
 
     # Help option handling
     if (
@@ -290,9 +359,15 @@ def main():
     # Command handling
     if sys.argv[1] == "init":
         dprint("Initiating tagger database...")
-        if "-s" in sys.argv:
-            use_system_config = True
         init_database(use_system_config)
+
+    elif sys.argv[1] == "remove-database":
+        dprint("Removing tagger database...")
+        if db := find_db_path():
+            os.remove(db)
+            print("Tagger database successfully removed.")
+        else:
+            error_out(1, "Database was not found.")
 
     elif sys.argv[1] == "tag":
         dprint("Adding tags to files...")
