@@ -36,39 +36,54 @@ def error_out(rcode, *args, **kwargs):
 def display_usage():  # TODO: Update to conform to new design doc
     """Displays top-level usage doc."""
     print(
-        """
-Usage:
-  tagger <command> [options] [filenames] [tags]
+        r"""Usage:
+  tagger <command> [options]
 
 Commands:
-  help <cmd>  . Show help for command <cmd> (Cur only this usage doc)
-  init  . . . . Initialize tagger database at default location
-  tag . . . . . Attach one or multiple tags to the specified file(s).
-                  'tagger tag {tag1} [{tag2} ...] [-f | --files | --]
-                    {file1} [{dir1} ...]'
-                  ex. 'tagger tag sparrow.png bird trees sky png'
-  list-tags . . List the tags of the specifed file(s).
-                  'tagger list-tags {file1} [{dir1} ...]'
-                  ex. 'tagger list-tags sparrow.png'
-  list-files  . List the files tagged with the specified tag(s).
-                Logical operators can be used - and:'&&', or:'||', not:'!'.
-                Default operator for multiple tags is ||.
-                  'tagger list-files {tag1} [<operators>] [{tag2} ...]'
-                  ex. 'tagger list-files bird sky' -> (bird || sky)
-                  ex. 'tagger list-files bird && sky'
-                  ex. 'tagger list-files (bird || sky) && !trees'
+  help <cmd>    Show help for command <cmd> (Cur only this usage doc)
+  init          Initialize tagger database at default location
+                  Syntax:
+                    'tagger init'
+  tag           Attach one or multiple tags to the specified file(s).
+                  Syntax:
+                    'tagger tag {tag1} [{tag2} ...] [-f | --files | --]
+                      {file1} [{dir1} ...]'
+                  Examples:
+                    'tagger tag bird trees sky png -- sparrow.png'
+  list-tags     List all the tags in the database, or of the specifed
+                  file(s). Option -u lists all tags that are unassociated
+                  with any file.
+                  Syntax:
+                    'tagger list-tags [{file1} ...]'
+                  Examples:
+                    'tagger list-tags sparrow.png'
+                    'tagger list-tags -u'
+  list-files    List the files tagged with the specified tag(s).
+                  Logical operators can be used - and, or, not.
+                  Default operator for multiple tags is or.
+                  Syntax:
+                    'tagger list-files [{tag1} [<operators>] {tag2} ...]'
+                  Examples:
+                    'tagger list-files'
+                    'tagger list-files bird sky' -> (bird or sky)
+                    'tagger list-files bird and sky'
+                    'tagger list-files (bird sky) and not trees'
 
 Features planned to be added later:
-  replace-tag . Delete first specified tag and replace with second
-                specified tag.
-                  'tagger raplace-tag {delete-tag} {create-tag}'
-                  ex. 'tagger replace-tag brid bird'
+  replace-tag   Delete first specified tag and replace with second
+                  specified tag. Reassigns the new tag to all files
+                  previously associated with the old tag.
+                  Syntax:
+                    'tagger raplace-tag {delete-tag} {create-tag}'
+                  Example:
+                    'tagger replace-tag brid bird'
 
 General Options:
-  -h, --help  . Display this usage menu.
-      --debug . Run program in debug mode.
-  -s  . . . . . If using linux, run db path generation in system mode.
-        """
+  -h, --help    Display this usage menu.
+      --debug   Run program in debug mode.
+  -s            With <init>: If using linux, generate db in /etc/
+                  (i.e. system-wide).
+  -u            With <list-tags>: Lists unused tags stored in the database."""
     )
 
 
@@ -181,7 +196,6 @@ COMMIT;
         sys.exit(1)
 
 
-# TODO Milestone 2
 def add_tags_to_files(tags, files: list) -> None:
     """Add the specified tags to the specified files in the database."""
 
@@ -240,16 +254,16 @@ def add_tags_to_files(tags, files: list) -> None:
                 )
 
                 dprint(f"Checking if {file_abspath} is already in database...")
-                # TODO Check basename as well as directory
                 if not cur.execute(
-                    "SELECT name FROM files WHERE name = (?)", (file_basename,)
+                    "SELECT name FROM files WHERE name = (?) AND directory = (?)",
+                    (file_basename, file_dirname),
                 ).fetchone():
                     cur.execute(
                         "INSERT INTO files(name, directory, fingerprint, mod_time, size, is_dir) VALUES(?, ?, ?, ?, ?, ?)",
                         (
                             file_basename,
                             file_dirname,
-                            "0",  # TODO
+                            "0",  # TODO file fingerprint
                             dt.datetime.now(),
                             os.stat(file_abspath).st_size / (1024**2),
                             os.path.isdir(file_abspath),
@@ -322,6 +336,139 @@ def tag() -> None:
     add_tags_to_files(tags, files)
 
 
+def list_tags():
+    u_option = False
+
+    if "-u" in sys.argv:
+        u_option = True
+        sys.argv.remove("-u")
+
+    if not u_option:
+        files = []
+        in_files = False
+        for arg in sys.argv:
+            if arg == "list-tags":
+                in_files = True
+                continue
+            if in_files:
+                files.append(arg)
+
+        dprint(f"{files = }")
+
+    with sqlite3.connect(find_db_path()) as con:
+        cur = con.cursor()
+        try:
+            # List all unused tags in the database
+            if u_option:
+                cur.execute(
+                    "SELECT name FROM tags WHERE tag_id NOT IN (SELECT tag_id FROM tag_files);"
+                )
+                tags = [tag for (tag,) in cur.fetchall()]
+                for tag in tags:
+                    print(tag)
+                return
+
+            # List all tags in the database
+            if not files:
+                cur.execute("SELECT name FROM tags;")
+                tags = [tag for (tag,) in cur.fetchall()]
+                for tag in tags:
+                    print(tag)
+                return
+
+            tags = []
+            for file in files:
+                fpath = os.path.abspath(file)
+                fname = os.path.basename(fpath)
+                fdir = os.path.dirname(fpath)
+
+                cur.execute(
+                    """
+SELECT DISTINCT t.name
+FROM tags t
+  JOIN tag_files tf
+    ON t.tag_id = tf.tag_id
+  JOIN files f
+    ON tf.file_id = f.file_id
+WHERE f.name = (?) AND f.directory = (?)
+ORDER BY f.name;
+                    """,
+                    (str(fname), str(fdir)),
+                )
+                found_tags = [tag for (tag,) in cur.fetchall()]
+                dprint(f"{found_tags = }")
+                for found_tag in found_tags:
+                    if found_tag not in tags:
+                        tags.append(found_tag)
+
+            dprint(f"Files associated with tag(s) {tags}:")
+            for tag in tags:
+                print(tag)
+
+        except Exception as err:
+            eprint(err, "Traceback:")
+
+            print_tb(err.__traceback__)
+            eprint("SQLite syntax incorrect.")
+
+
+def list_files():
+    tags = []
+    in_tags = False
+    for arg in sys.argv:
+        if arg == "list-files":
+            in_tags = True
+            continue
+        if in_tags:
+            tags.append(arg)
+
+    dprint(f"{tags = }")
+
+    with sqlite3.connect(find_db_path()) as con:
+        cur = con.cursor()
+        try:
+            # List all the files in the database
+            if not tags:
+                cur.execute("SELECT directory, name FROM files;")
+                dir_files = cur.fetchall()  # Formatted [(dir, file), (dir, file), ...]
+                paths = [dir + os.sep + fname for dir, fname in dir_files]
+                for file in paths:
+                    print(file)
+                return
+
+            files = []
+            for tag in tags:
+                cur.execute(
+                    """
+SELECT DISTINCT f.directory, f.name
+FROM files f
+    JOIN tag_files tf
+        ON f.file_id = tf.file_id
+    JOIN tags t
+        ON tf.tag_id = t.tag_id
+WHERE t.name = (?)
+ORDER BY f.name;
+                    """,
+                    (str(tag),),
+                )
+                dir_files = cur.fetchall()  # Formatted [(dir, file), (dir, file), ...]
+                paths = [dir + os.sep + fname for dir, fname in dir_files]
+                dprint(f"{paths = }")
+                for path in paths:
+                    if path not in files:
+                        files.append(path)
+
+            dprint(f"Files associated with tag(s) {tags}:")
+            for file in files:
+                print(file)
+
+        except Exception as err:
+            eprint(err, "Traceback:")
+
+            print_tb(err.__traceback__)
+            eprint("SQLite syntax incorrect.")
+
+
 def main():
     global _debug
     use_system_config = False
@@ -340,19 +487,12 @@ def main():
     if (
         "-h" in sys.argv
         or "--help" in sys.argv
-        or len(sys.argv) == 1
         or "help" in sys.argv
+        or len(sys.argv) == 1
     ):
-        if "-h" in sys.argv:
-            dprint(f"Printing usage because {'-h' in sys.argv=}...")
-            sys.argv.remove("-h")
-        if "--help" in sys.argv:
-            dprint(f"Printing usage because {'--help' in sys.argv=}...")
-            sys.argv.remove("--help")
         if len(sys.argv) == 1:
-            dprint(f"Printing usage because {(len(sys.argv) == 1)=}...")
-        if "help" in sys.argv:
-            dprint(f"Printing usage because {'help' in sys.argv=}...")
+            eprint("Missing arguments.")
+
         display_usage()
         sys.exit(0)
 
@@ -370,15 +510,20 @@ def main():
             error_out(1, "Database was not found.")
 
     elif sys.argv[1] == "tag":
-        dprint("Adding tags to files...")
+        dprint("Tagging files...")
         tag()
 
     elif sys.argv[1] == "list-tags":
-        ...
+        dprint("Querying database for tags...")
+        list_tags()
+
     elif sys.argv[1] == "list-files":
-        ...
+        dprint("Querying database for files...")
+        list_files()
+
     elif sys.argv[1] == "replace-tag":
         ...
+
     else:
         dprint(f"Printing usage because invalid command syntax...")
         display_usage()
