@@ -3,7 +3,7 @@
 *.png
 
 test.py
-see_into_tagger.db.bat
+snippets.bat
 
 cache/
 .vscode/
