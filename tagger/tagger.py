@@ -2,8 +2,8 @@ import os
 import sys
 import sqlite3
 import datetime as dt
-from traceback import print_tb
-from contextlib import closing
+import traceback
+import contextlib
 
 DBFILE = "tagger.db"
 _debug = False
@@ -144,7 +144,7 @@ def init_database(is_system=False) -> None:
     path = gen_db_path(is_system)
     had_error = False
 
-    with closing(sqlite3.connect(path)) as con:
+    with contextlib.closing(sqlite3.connect(path)) as con:
         cur = con.cursor()
         try:
             cur.executescript(
@@ -177,7 +177,7 @@ COMMIT;
             )
         except Exception as err:
             eprint(err, "Traceback:")
-            print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             eprint("Faulty database initialized.")
             had_error = True
 
@@ -191,7 +191,7 @@ COMMIT;
             print("Removed faulty database.")
         except Exception as err:
             eprint(err, "Traceback:")
-            print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             eprint("Faulty database not removed.")
         sys.exit(1)
 
@@ -301,7 +301,7 @@ def add_tags_to_files(tags, files: list) -> None:
         except Exception as err:
             eprint(err, "Traceback:")
 
-            print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             eprint("SQLite syntax incorrect.")
 
 
@@ -408,7 +408,7 @@ ORDER BY f.name;
         except Exception as err:
             eprint(err, "Traceback:")
 
-            print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             eprint("SQLite syntax incorrect.")
 
 
@@ -465,7 +465,7 @@ ORDER BY f.name;
         except Exception as err:
             eprint(err, "Traceback:")
 
-            print_tb(err.__traceback__)
+            traceback.print_tb(err.__traceback__)
             eprint("SQLite syntax incorrect.")
 
 
