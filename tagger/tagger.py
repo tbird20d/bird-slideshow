@@ -1,6 +1,7 @@
 import os
 import sys
 import sqlite3
+import hashlib
 import datetime as dt
 import traceback
 import contextlib
@@ -160,7 +161,7 @@ CREATE TABLE IF NOT EXISTS files(
     directory TEXT NOT NULL,
     fingerprint TEXT,
     mod_time TIMESTAMP,
-    size REAL,
+    size INTEGER,
     is_dir BOOLEAN
 );
 CREATE TABLE IF NOT EXISTS tag_files(
@@ -194,6 +195,23 @@ COMMIT;
             traceback.print_tb(err.__traceback__)
             eprint("Faulty database not removed.")
         sys.exit(1)
+
+
+def get_fingerprint(file):
+    """Gets the fingerprint for the passed file.
+
+    Fingerprint is the sha1 hash of bytes from beginning, end, and middle of file.
+    """
+
+    h = hashlib.sha1()
+    f = open(file, "rb")
+    h.update(f.read(64000))
+    pos = f.seek(-64000, 2)
+    h.update(f.read(64000))
+    f.seek(pos // 2, 0)
+    h.update(f.read(64000))
+    f.close()
+    return h.hexdigest()
 
 
 def add_tags_to_files(tags, files: list) -> None:
@@ -263,9 +281,9 @@ def add_tags_to_files(tags, files: list) -> None:
                         (
                             file_basename,
                             file_dirname,
-                            "0",  # TODO file fingerprint
+                            get_fingerprint(file_abspath),
                             dt.datetime.now(),
-                            os.stat(file_abspath).st_size / (1024**2),
+                            os.stat(file_abspath).st_size,
                             os.path.isdir(file_abspath),
                         ),
                     )
