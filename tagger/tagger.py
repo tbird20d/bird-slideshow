@@ -95,7 +95,7 @@ def find_db_path() -> str | None:
 
     # Check windows user directory
     if sys.platform == "win32":
-        file_path = os.path.expandvars("%LOCALAPPDATA%\\" + DBFILE)
+        file_path = os.path.expandvars("%LOCALAPPDATA%\\tagger\\" + DBFILE)
         if os.path.exists(file_path):
             # dprint(f"File found: {file_path=}")
             return file_path
@@ -123,7 +123,7 @@ def gen_db_path(is_system=False) -> str:
 
     # Check windows user directory
     if sys.platform == "win32":
-        file_path = os.path.expandvars("%LOCALAPPDATA%\\" + DBFILE)
+        file_path = os.path.expandvars("%LOCALAPPDATA%\\tagger\\" + DBFILE)
 
     # Check linux user config and system-wide directory
     if sys.platform.startswith("linux"):
