@@ -544,6 +544,7 @@ def main():
 
     else:
         dprint(f"Printing usage because invalid command syntax...")
+        eprint("Invalid command.")
         display_usage()
 
     sys.exit(0)
