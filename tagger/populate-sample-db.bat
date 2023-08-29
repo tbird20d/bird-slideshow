@@ -12,8 +12,9 @@ IF NOT EXIST %LOCALAPPDATA%\tagger\dist\tagger\tagger.exe (
 tagger remove-database %DEBUG%
 tagger init %DEBUG%
 @CHDIR .\sample-pics
-tagger tag tree -- ropes-zipline-course.JPG Tori-gate-japan.jpg %DEBUG%
+tagger tag sample -- dessert-swans.JPG ropes-zipline-course.JPG Tori-gate-japan.jpg skyscraper.jpg %DEBUG%
 tagger tag outside -- ropes-zipline-course.JPG Tori-gate-japan.jpg skyscraper.jpg %DEBUG%
+tagger tag tree -- ropes-zipline-course.JPG Tori-gate-japan.jpg %DEBUG%
 tagger tag building -- skyscraper.jpg %DEBUG%
 tagger tag japan -- Tori-gate-japan.jpg %DEBUG%
 tagger tag food -- dessert-swans.JPG %DEBUG%
