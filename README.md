@@ -8,7 +8,7 @@ Features:
  - pictures are loaded asynchronously from the display
    - ie. the next image is loaded while the current image is being displayed
  - a cache is created for recently used images (so they can cycle without
-   loading them multiple times
+   loading them multiple times)
  - pictures may be loaded from local directories, or web pages
  - multiple picture sources may be specified
 
@@ -17,8 +17,8 @@ Config File
 Here are the allowed fields in the config file (which is in a simple name=value
 text file format):
 
-source= specifies the directory, website, or ssh path to read pictures from
-  This option can be specified multiple times in the config file.
+source= specifies the directory, website, ssh path, or tagger query to read
+  pictures from. This option can be specified multiple times in the config file.
 
 wait_time= specified the amount of time to wait between displaying pictures
 
