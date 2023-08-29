@@ -20,9 +20,14 @@ from bs4 import BeautifulSoup, ResultSet
 _debug: bool = False
 VERSION: tuple = (0, 7, 0)
 CONFIG_FILE: str = "bird-slideshow.cfg"
-TRUTH_TABLE: dict = {"True": True, "False": False,
-                     "1": True, "0": False,
-                     "Yes": True, "No": False}
+TRUTH_TABLE: dict = {
+    "True": True,
+    "False": False,
+    "1": True,
+    "0": False,
+    "Yes": True,
+    "No": False,
+}
 
 
 # Classes
@@ -76,7 +81,7 @@ class Config:  # pylint: disable=R0902
             ::constructor:`self.__init__()`
         """
 
-        with open(self.config_file, 'r', encoding='utf-8') as options_file:
+        with open(self.config_file, "r", encoding="utf-8") as options_file:
             for line in options_file:
                 if not line or line.startswith("#"):
                     continue
@@ -112,15 +117,21 @@ class Config:  # pylint: disable=R0902
             ::constructor:`self.__init__()`
         """
 
-        num_sources = int(input("Number of image sources (from directories or webpages): "))
+        num_sources = int(
+            input("Number of image sources (from directories or webpages): ")
+        )
         for _ in range(num_sources):
             source = input("Source of images (directory or url): ")
             self.sources.append(source)
         self.wait_time = int(float(input("Wait time in seconds: ")) * 1000)
         value = input("Start in fullscreen mode (True/False): ")
         self.start_full = TRUTH_TABLE[value.capitalize()]
-        self.win_start_res = input("Window resolution (in the form '{width}x{height}'): ")
-        self.max_resize = float(input("Max resize factor for image resizing (2 = 200%): "))
+        self.win_start_res = input(
+            "Window resolution (in the form '{width}x{height}'): "
+        )
+        self.max_resize = float(
+            input("Max resize factor for image resizing (2 = 200%): ")
+        )
         self.cache_dir = input("Directory for cache: ")
 
     def _convert_win_res(self):
@@ -130,7 +141,7 @@ class Config:  # pylint: disable=R0902
             ::constructor:`self.__init__()`
         """
 
-        width, height = self.win_start_res.split('x')
+        width, height = self.win_start_res.split("x")
         self.win_start_width = int(width)
         self.win_start_height = int(height)
 
@@ -215,8 +226,10 @@ class SlideshowImage:
         except FileNotFoundError:
             print("Error: could not load image from path %s" % self.local_filepath)
         except PIL.UnidentifiedImageError:
-            print("Error: data %s, for path '%s' is invalid (not an image)" %
-                  (img_src, self.img_path))
+            print(
+                "Error: data %s, for path '%s' is invalid (not an image)"
+                % (img_src, self.img_path)
+            )
 
         if img:
             self.pil_img = img
@@ -240,15 +253,23 @@ win_height: int = 720
 
 
 # Global Functions
-def dprint(msg):
-    """Debug print statement. Adds DEBUG to the front of a string
-    and prints it.
-    """
-
-    global _debug
-
+def dprint(*args, **kwargs):
+    """Debug print wrapper."""
     if _debug:
-        print("DEBUG:", str(msg))
+        colored_debug = "\u001b[38;5;208mDEBUG:\u001b[0m  "
+        if "sep" not in kwargs:
+            kwargs["sep"] = f"\n{colored_debug}"
+        print(f"{colored_debug}" + str(*args[:1]), *args[1:], **kwargs)
+
+
+def eprint(*args, **kwargs):
+    """Error print wrapper."""
+    if "end" not in kwargs:
+        kwargs["end"] = "\n\n"
+    colored_error = "\u001b[31;1mERROR:\u001b[0m  "
+    if "sep" not in kwargs:
+        kwargs["sep"] = f"\n{colored_error}"
+    print(f"\n{colored_error}" + str(*args[:1]), *args[1:], **kwargs)
 
 
 def find_config_file():
@@ -263,20 +284,20 @@ def find_config_file():
     """
 
     # Check windows user directory
-    if sys.platform == 'win32':
-        file_path = os.path.expandvars('%LOCALAPPDATA%\\' + CONFIG_FILE)
+    if sys.platform == "win32":
+        file_path = os.path.expandvars("%LOCALAPPDATA%\\" + CONFIG_FILE)
         dprint(file_path)
         dprint(os.path.exists(file_path))
         if os.path.exists(file_path):
             return file_path
 
     # Check linux user config and system-wide directory
-    if sys.platform.startswith('linux'):
-        file_path = os.path.expandvars('$HOME/.config/' + CONFIG_FILE)
+    if sys.platform.startswith("linux"):
+        file_path = os.path.expandvars("$HOME/.config/" + CONFIG_FILE)
         dprint(file_path)
         if os.path.exists(file_path):
             return file_path
-        file_path = '/etc/' + CONFIG_FILE
+        file_path = "/etc/" + CONFIG_FILE
         if os.path.exists(file_path):
             return file_path
 
@@ -335,8 +356,7 @@ def init_window():
     win = tkinter.Tk()
     win.title("Slideshow")
     win.geometry(config.win_start_res)
-    canvas = tkinter.Canvas(win, width=win_width, height=win_height,
-                            bg='black')
+    canvas = tkinter.Canvas(win, width=win_width, height=win_height, bg="black")
     canvas.pack(fill=tkinter.BOTH, expand=True)
 
     win.attributes("-fullscreen", config.start_full)
@@ -409,11 +429,14 @@ def get_paths(sources: list):
         ::function:`get_ssh_paths()`
     """
 
+    src: str
     for src in sources:
         if src.startswith("http"):
             get_http_paths(src)
         elif src.startswith("ssh"):
             get_ssh_paths(src)
+        elif src.startswith("tagger"):
+            get_tagger_paths(src)
         else:
             get_file_paths(src)
 
@@ -481,9 +504,9 @@ def get_img_tags(html: str) -> ResultSet:
         ::function:`get_http_paths()`
     """
     # Parse HTML Code
-    soup = BeautifulSoup(html, 'html.parser')
+    soup = BeautifulSoup(html, "html.parser")
     # find all images in URL
-    img_tags: ResultSet = soup.findAll('img')
+    img_tags: ResultSet = soup.findAll("img")
     dprint("img_tags=%s" % img_tags)
     return img_tags
 
@@ -503,10 +526,10 @@ def ssh_path_elements(src_path: str) -> tuple:
     if src_path.startswith("ssh:"):
         src_path = src_path[4:]
 
-    if '@' in src_path:
-        user_and_password, server_and_path = src_path.split('@', 1)
+    if "@" in src_path:
+        user_and_password, server_and_path = src_path.split("@", 1)
         if ":" in user_and_password:
-            user, password = user_and_password.split(':', 1)
+            user, password = user_and_password.split(":", 1)
         else:
             user = user_and_password
             password = ""
@@ -516,9 +539,12 @@ def ssh_path_elements(src_path: str) -> tuple:
         server_and_path = src_path
 
     if ":" in server_and_path:
-        server, path = server_and_path.split(':', 1)
+        server, path = server_and_path.split(":", 1)
     else:
-        print("Error: missing ':' in server and path portion of src path: '%s'" % server_and_path)
+        print(
+            "Error: missing ':' in server and path portion of src path: '%s'"
+            % server_and_path
+        )
         server = server_and_path
         path = "/"
 
@@ -558,7 +584,7 @@ def get_ssh_paths(src_path: str):  # pylint: disable=R0914,R0912
     # escape spaces in path
     escaped_path = path.replace(" ", "\\ ")
 
-    cmd += ['/usr/bin/ssh', user_and_host, 'ls', '-F', escaped_path]
+    cmd += ["/usr/bin/ssh", user_and_host, "ls", "-F", escaped_path]
 
     dprint("cmd=%s" % cmd)
 
@@ -593,6 +619,40 @@ def get_ssh_paths(src_path: str):  # pylint: disable=R0914,R0912
             slideshow_imgs.append(SlideshowImage(ssh_path))
         else:
             dprint("%s is not a picture" % line)
+
+
+def get_tagger_paths(src: str):
+    """Gets the images returned from running a query with the tagger database
+    using the `tagger` program. The source is a string of the arguments if you
+    were to run the tagger program from the command line.
+
+    Args:
+        ::param:`src: str` - the tagger command to query tagger database with the
+            prefix '`tagger:`'
+
+    Called by:
+        ::function:`get_paths()`
+
+    Calls:
+        ::function:`get_file_paths()`
+    """
+
+    # Removes the `tagger:` prefix from src
+    cmd_line = src.split(":", 1)[1]
+
+    comp_proc = subprocess.run(cmd_line.split(), capture_output=True, text=True)
+    dprint(f"tagger output = {comp_proc.stdout}")
+
+    output = comp_proc.stdout.strip().split("\n")
+    dprint(f"{output = }")
+
+    if not any(output):
+        print(f"INFO:   Running '{cmd_line}' produced no images")
+        return
+
+    for path in output:
+        if os.path.isfile(path):
+            slideshow_imgs.append(SlideshowImage(path))
 
 
 def get_file_paths(directory: str):
@@ -643,7 +703,7 @@ def async_preload_img():
         return
 
     preload_index += 1
-    if preload_index >= len(slideshow_imgs)-1:
+    if preload_index >= len(slideshow_imgs) - 1:
         preload_index = 0
 
     dprint("IN ASYNC PRELOAD: preload_index = %s" % preload_index)
@@ -744,14 +804,15 @@ def download_ssh_img(cache_dir: str, ssh_path: str) -> str:  # pylint: disable=R
         dprint("Using img " + filename + " from cache directory")
         return cache_path
 
-    cmd += ['/usr/bin/scp', host_path, cache_path]
+    cmd += ["/usr/bin/scp", host_path, cache_path]
 
     dprint("cmd=%s" % cmd)
 
     dprint("Starting download process...")
     try:
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                           check=True, timeout=20)
+        p = subprocess.run(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=20
+        )
     except subprocess.CalledProcessError as e:
         print("Error: Executing '%s'\n%s" % (" ".join(cmd), e.stderr))
 
@@ -811,16 +872,16 @@ def resize_img(img: Image.Image) -> Image.Image:
     """
 
     img_w, img_h = img.size
-    w_scale_factor: float = win_width/img_w
-    h_scale_factor: float = win_height/img_h
+    w_scale_factor: float = win_width / img_w
+    h_scale_factor: float = win_height / img_h
 
     # Picks the minimum between the vertical or horizontal scale factor, then takes the minimum
     # between the scale factor and the max_resize configuration setting.
     scale_factor = min(min(w_scale_factor, h_scale_factor), config.max_resize)
     # print(f"DEBUG: scale_factor = {scale_factor}, config.max_resize = {config.max_resize}")
 
-    if scale_factor < .95 or scale_factor > 1.05:
-        return img.resize((int(img_w*scale_factor), int(img_h*scale_factor)))
+    if scale_factor < 0.95 or scale_factor > 1.05:
+        return img.resize((int(img_w * scale_factor), int(img_h * scale_factor)))
 
     return img
 
@@ -855,7 +916,9 @@ def update_img():
 
     # Resize the PIL image; throw error if there is no PIL image at the index.
     if not slideshow_imgs[imgs_index].pil_img:
-        print("ERROR, pil_img was None, img_path =", slideshow_imgs[imgs_index].img_path)
+        print(
+            "ERROR, pil_img was None, img_path =", slideshow_imgs[imgs_index].img_path
+        )
         return
 
     pil_img_r: Image.Image = resize_img(slideshow_imgs[imgs_index].pil_img)
@@ -868,17 +931,27 @@ def update_img():
     win_width = win.winfo_width()
     win_height = win.winfo_height()
 
-    canvas.create_image((win_width)/2, (win_height)/2,
-                        anchor=tkinter.CENTER,
-                        image=slideshow_imgs[imgs_index].tk_img)
+    canvas.create_image(
+        (win_width) / 2,
+        (win_height) / 2,
+        anchor=tkinter.CENTER,
+        image=slideshow_imgs[imgs_index].tk_img,
+    )
 
     if is_paused:
         # show paused status
         # Put text on a black background for readability
-        canvas.create_rectangle((win_width)/2-50, 36, (win_width)/2+50, 64, fill="black")
-        canvas.create_text((win_width)/2, 50, anchor=tkinter.CENTER,
-                           text=" paused ", fill="white",
-                           font=('Helvetica 15 bold'))
+        canvas.create_rectangle(
+            (win_width) / 2 - 50, 36, (win_width) / 2 + 50, 64, fill="black"
+        )
+        canvas.create_text(
+            (win_width) / 2,
+            50,
+            anchor=tkinter.CENTER,
+            text=" paused ",
+            fill="white",
+            font=("Helvetica 15 bold"),
+        )
         canvas.pack()
 
 
@@ -902,7 +975,7 @@ def next_img():
     if not is_paused:
         last_img = slideshow_imgs[imgs_index]
         imgs_index += 1
-        if imgs_index >= len(slideshow_imgs)-1:
+        if imgs_index >= len(slideshow_imgs) - 1:
             imgs_index -= len(slideshow_imgs)
         if imgs_index < 0:
             imgs_index += len(slideshow_imgs)
@@ -935,7 +1008,7 @@ def rotate_img_forward(event):  # pylint: disable=W0613
     global imgs_index
 
     imgs_index += 1
-    if imgs_index >= len(slideshow_imgs)-1:
+    if imgs_index >= len(slideshow_imgs) - 1:
         imgs_index -= len(slideshow_imgs)
     if imgs_index < 0:
         imgs_index += len(slideshow_imgs)
@@ -961,7 +1034,7 @@ def rotate_img_back(event):  # pylint: disable=W0613
 
     imgs_index -= 1
 
-    if imgs_index >= len(slideshow_imgs)-1:
+    if imgs_index >= len(slideshow_imgs) - 1:
         imgs_index -= len(slideshow_imgs)
     if imgs_index < 0:
         imgs_index += len(slideshow_imgs)
@@ -1022,11 +1095,14 @@ def main():
     get_paths(config.sources)
 
     if not slideshow_imgs:
-        print("Error: no images found. Aborting program")
-        print("(Maybe check the 'source' lines in your config file?)")
+        eprint(
+            "Error: no images found. Aborting program",
+            "(Maybe check the 'source' lines in your config file?)",
+            sep="\n\t",
+        )
         sys.exit(1)
 
-    print('Slideshow is running in another window...')
+    print("Slideshow is running in another window...")
     preload_imgs()
 
     # start updating images after mainloop starts
@@ -1036,5 +1112,5 @@ def main():
     win.mainloop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
