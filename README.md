@@ -8,8 +8,9 @@ Features:
  - pictures are loaded asynchronously from the display
    - ie. the next image is loaded while the current image is being displayed
  - a cache is created for recently used images (so they can cycle without
-   loading them multiple times
- - pictures may be loaded from local directories, or web pages
+   loading them multiple times)
+ - pictures may be loaded from local directories, web pages, or a remote
+   machine via ssh
  - multiple picture sources may be specified
 
 Config File
@@ -38,6 +39,12 @@ max_resize= specifies the maximum size a picture can be as a percentage of its
   are smaller then the current window.
 
 cache_dir= specifies the directory to be used for caching images
+
+max_preload= maximum number of images to preload
+
+small_memory= can be 0 or 1 (True or False).  if set, bird-slideshow will
+  try to use less memory.  It will keep less pictures in physical memory,
+  which may cause delays as images are re-read from the disk cache.
 
 Operation
 ---------
