@@ -3,6 +3,7 @@
 *.png
 
 test.py
+snippets.bat
 
 cache/
 .vscode/
