@@ -13,9 +13,8 @@ To do items for tagger:
    - tagger help - show help overview
    - tagger help [command] - show help for a specific command
    - tagger init - create sqlite database in current directory
-   - tagger tag [file] [tag1] [tag2] ... - tag file with the indicated tags
-   - tagger tag --tags="[tag1] [tag2] ..." [file1] [file2] - tag multiple files with the indicated tags
-   - tagger files [tag expression] - show list of files that match the tag expression
-   - tagger tags - list all registered tags
+   - tagger tag [tag1] [tag2] ... -- [file1] [file2] ... - apply indicated tags to indicated files
+   - tagger list-files [tag expression] - show list of files that match the tag expression
+   - tagger list-tags - list all registered tags
 
 SEE ALSO: new google drive design document: https://docs.google.com/document/d/1AQDrHrJ9_z-6md_8RiCwl75zwV64H-Mk0Lp3moWJc58/edit?usp=sharing
