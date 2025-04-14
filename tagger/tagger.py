@@ -5,9 +5,26 @@ import hashlib
 import datetime as dt
 import traceback
 import contextlib
+import PIL.Image
+import PIL.ExifTags as ExifTags
+import geopy.geocoders as geocoders
 
 DBFILE = "tagger.db"
 _debug = False
+MONTHS = {
+    "01": "january",
+    "02": "february",
+    "03": "march",
+    "04": "april",
+    "05": "may",
+    "06": "june",
+    "07": "july",
+    "08": "august",
+    "09": "september",
+    "10": "october",
+    "11": "november",
+    "12": "december",
+}
 
 
 def dprint(*args, **kwargs):
@@ -31,6 +48,7 @@ def eprint(*args, **kwargs):
 
 def error_out(rcode, *args, **kwargs):
     eprint(*args, **kwargs)
+    display_usage()
     sys.exit(rcode)
 
 
@@ -44,31 +62,41 @@ Commands:
   help <cmd>    Show help for command <cmd> (Cur only this usage doc)
   init          Initialize tagger database at default location
                   Syntax:
-                    'tagger init'
+                    tagger init
   tag           Attach one or multiple tags to the specified file(s).
                   Syntax:
-                    'tagger tag {tag1} [{tag2} ...] [-f | --files | --]
-                      {file1} [{dir1} ...]'
+                    tagger tag {tag1} [{tag2} ...] [-f | --files | --]
+                      {file1} [{dir1} ...]
                   Examples:
-                    'tagger tag bird trees sky png -- sparrow.png'
+                    tagger tag bird trees sky png -- sparrow.png
   list-tags     List all the tags in the database, or of the specifed
                   file(s). Option -u lists all tags that are unassociated
                   with any file.
                   Syntax:
-                    'tagger list-tags [{file1} ...]'
+                    tagger list-tags [{file1} ...]
                   Examples:
-                    'tagger list-tags sparrow.png'
-                    'tagger list-tags -u'
+                    tagger list-tags sparrow.png
+                    tagger list-tags -u
   list-files    List the files tagged with the specified tag(s).
                   Logical operators can be used - and, or, not.
                   Default operator for multiple tags is or.
+                  Order of operations from left to right. (?)
                   Syntax:
-                    'tagger list-files [{tag1} [<operators>] {tag2} ...]'
+                    tagger list-files [{tag1} [<operators>] {tag2} ...]
                   Examples:
-                    'tagger list-files'
-                    'tagger list-files bird sky' -> (bird or sky)
-                    'tagger list-files bird and sky'
-                    'tagger list-files (bird sky) and not trees'
+                    tagger list-files
+                    tagger list-files bird sky (-> bird or sky)
+                    tagger list-files bird and sky  # TODO
+                    tagger list-files bird or sky and not japan  # TODO
+  auto-tag      Tags specified files according to automatically deduced image
+                  metadata (exif).
+                  Syntax:
+                    tagger auto-tag {type} -- {file1} [{file2} ...]
+                  `type`:
+                    One of 'exif-date', 'exif-loc'
+                  Examples:
+                    tagger auto-tag exif-loc -- europe2023.jpg
+
 
 Features planned to be added later:
   replace-tag   Delete first specified tag and replace with second
@@ -214,7 +242,7 @@ def get_fingerprint(file):
     return h.hexdigest()
 
 
-def add_tags_to_files(tags, files: list) -> None:
+def add_tags_to_files(tags: list, files: list):
     """Add the specified tags to the specified files in the database."""
 
     assert find_db_path(), "Should have caught if there is no db path in `tag()`"
@@ -487,6 +515,93 @@ ORDER BY f.name;
             eprint("SQLite syntax incorrect.")
 
 
+def get_date_from_exif(file):
+    """Reads exif data and returns datetime."""
+    try:
+        PIL_image = PIL.Image.open(os.path.abspath(file))
+        datetime = PIL_image.getexif()[0x0132]  # 'DateTime'
+        dprint(f"Exif DateTime: {datetime}")
+        return datetime
+    except Exception as err:
+        print(traceback.print_tb(err.__traceback__))
+
+
+def tag_exif_date(files: list):
+    """Automatically reads date data for each file and tags year and month."""
+    for file in files:
+        date_str: str = get_date_from_exif(file)
+
+        # Parses the month and year from datetime str
+        date_year, date_month, _ = date_str.split(":", 2)
+        dprint(f"{date_year = }, {date_month = }")
+
+        month = MONTHS[date_month]
+        tags = [date_year, month]
+        add_tags_to_files(tags, [file])
+
+
+def get_gps_from_exif(file):
+    """Reads exif data and returns gps dict if exists, otherwise return None."""
+    try:
+        PIL_image = PIL.Image.open(os.path.abspath(file))
+        gps_dict = PIL_image.getexif().get_ifd(0x8825)  # 'GPSInfo'
+        dprint(f"Exif GPSInfo: {gps_dict}")
+        return gps_dict if gps_dict else None
+    except Exception as err:
+        print(traceback.print_tb(err.__traceback__))
+
+
+def convert_dms_to_degrees(lat_ref, lat: tuple, lng_ref, lng: tuple):
+    """Convert GPS data from Degree Minutes Seconds to Decimal Degrees."""
+    lat_deg = lat[0] + lat[1] / 60 + lat[2] / 3600
+    lng_deg = lng[0] + lng[1] / 60 + lng[2] / 3600
+    if lat_ref == "S":
+        lat_deg = -lat_deg
+    if lng_ref == "W":
+        lng_deg = -lng_deg
+    return lat_deg, lng_deg
+
+
+def tag_exif_loc(files: list):
+    """Automatically reads gps data for each file and tags the country."""  # TODO
+    for file in files:
+        gps_data = get_gps_from_exif(file)
+
+        if not gps_data:
+            continue
+
+        lat, lng = convert_dms_to_degrees(
+            gps_data[1], gps_data[2], gps_data[3], gps_data[4]
+        )  # 1: Lat Ref 2: Lat 3: Lng Ref 4: Lng
+
+        locator = geocoders.Nominatim("tagger.py")
+        loc = locator.reverse((lat, lng), zoom=11, language="en")
+
+        ...
+
+
+def auto_tag():
+    """Tag specified files using the spcified type of exif data."""
+
+    if sys.argv[2] not in ["exif-date", "exif-loc"]:
+        error_out(1, f"Unrecognized argument: {sys.argv[2]}")
+
+    files = []
+    in_files = False
+    for arg in sys.argv:
+        if arg == "--":
+            in_files = True
+            continue
+        if in_files:
+            files.append(arg)
+
+    if sys.argv[2] == "exif-date":
+        tag_exif_date(files)
+
+    if sys.argv[2] == "exif-loc":
+        tag_exif_loc(files)
+
+
 def main():
     global _debug
     use_system_config = False
@@ -539,13 +654,16 @@ def main():
         dprint("Querying database for files...")
         list_files()
 
+    elif sys.argv[1] == "auto-tag":
+        dprint("Auto-tagging...")
+        auto_tag()
+
     elif sys.argv[1] == "replace-tag":
         ...
 
     else:
         dprint(f"Printing usage because invalid command syntax...")
-        eprint("Invalid command.")
-        display_usage()
+        error_out(1, "Invalid command.")
 
     sys.exit(0)
 
