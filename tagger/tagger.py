@@ -6,7 +6,8 @@ import datetime as dt
 import traceback
 import contextlib
 import PIL.Image
-import PIL.ExifTags as ExifTags
+import PIL.ExifTags
+
 import geopy.geocoders as geocoders
 
 DBFILE = "tagger.db"
@@ -48,7 +49,8 @@ def eprint(*args, **kwargs):
 
 def error_out(rcode, *args, **kwargs):
     eprint(*args, **kwargs)
-    display_usage()
+    print(f"Usage: {sys.argv[0]} <command> [options]")
+    print(f"tagger --help for more information.")
     sys.exit(rcode)
 
 
@@ -91,9 +93,9 @@ Commands:
   auto-tag      Tags specified files according to automatically deduced image
                   metadata (exif).
                   Syntax:
-                    tagger auto-tag {type} -- {file1} [{file2} ...]
+                    tagger auto-tag --dry-run {type} -- {file1} [{file2} ...]
                   `type`:
-                    One of 'exif-date', 'exif-loc'
+                    One of 'exif-date', 'exif-loc', 'exif'
                   Examples:
                     tagger auto-tag exif-loc -- europe2023.jpg
 
@@ -345,10 +347,15 @@ def add_tags_to_files(tags: list, files: list):
                     )
 
         except Exception as err:
+            if "UNIQUE constraint failed" in str(err):
+                print(f"File {file_basename} already has one of {tags}.")
+                # TODO: More descriptive error message.
+                return
+            
             eprint(err, "Traceback:")
 
             traceback.print_tb(err.__traceback__)
-            eprint("SQLite syntax incorrect.")
+            eprint("SQLite syntax may be incorrect.")
 
 
 def tag() -> None:
@@ -523,13 +530,18 @@ def get_date_from_exif(file):
         dprint(f"Exif DateTime: {datetime}")
         return datetime
     except Exception as err:
-        print(traceback.print_tb(err.__traceback__))
+        # dprint(traceback.print_tb(err.__traceback__))
+        return None
 
 
-def tag_exif_date(files: list):
+def tag_exif_date(files: list, dry_run: bool = False):
     """Automatically reads date data for each file and tags year and month."""
     for file in files:
         date_str: str = get_date_from_exif(file)
+
+        if not date_str:
+            dprint(f"No date found for {file}.")
+            continue
 
         # Parses the month and year from datetime str
         date_year, date_month, _ = date_str.split(":", 2)
@@ -537,7 +549,10 @@ def tag_exif_date(files: list):
 
         month = MONTHS[date_month]
         tags = [date_year, month]
-        add_tags_to_files(tags, [file])
+        if not dry_run:
+            add_tags_to_files(tags, [file])
+        else:
+            print(f"Would have tagged {file} with {tags}.")
 
 
 def get_gps_from_exif(file):
@@ -548,7 +563,8 @@ def get_gps_from_exif(file):
         dprint(f"Exif GPSInfo: {gps_dict}")
         return gps_dict if gps_dict else None
     except Exception as err:
-        print(traceback.print_tb(err.__traceback__))
+        # dprint(traceback.print_tb(err.__traceback__))
+        return None
 
 
 def convert_dms_to_degrees(lat_ref, lat: tuple, lng_ref, lng: tuple):
@@ -562,29 +578,70 @@ def convert_dms_to_degrees(lat_ref, lat: tuple, lng_ref, lng: tuple):
     return lat_deg, lng_deg
 
 
-def tag_exif_loc(files: list):
+def tag_exif_loc(files: list, dry_run: bool = False):
     """Automatically reads gps data for each file and tags the country."""  # TODO
     for file in files:
         gps_data = get_gps_from_exif(file)
 
         if not gps_data:
+            dprint(f"No gps data found for {file}.")
             continue
 
         lat, lng = convert_dms_to_degrees(
             gps_data[1], gps_data[2], gps_data[3], gps_data[4]
         )  # 1: Lat Ref 2: Lat 3: Lng Ref 4: Lng
 
-        locator = geocoders.Nominatim("tagger.py")
-        loc = locator.reverse((lat, lng), zoom=11, language="en")
+        dprint(f"{lat = }, {lng = }")
 
-        ...
+        locator = geocoders.Nominatim(user_agent="taggercli")
+        loc = locator.reverse((lat, lng), zoom=11, language="en-US")
+
+        dprint(f"{loc = }")
+
+        data: dict = loc.raw
+        
+        dprint(f"{data = }")
+
+        address: dict = data.get("address", {})
+
+        if not address:
+            eprint(f"No address found for {file}.")
+            continue
+
+        leisure: str = address.get("leisure", "")
+        city: str = address.get("city", "")
+        state: str = address.get("state", "")
+        country: str = address.get("country", "")
+        country_code: str = address.get("country_code", "")
+
+        fields = [leisure, city, state, country, country_code]
+        tags = []
+
+        for field in fields:
+            if field:
+                tags.append(field)
+
+        dprint(f"{tags = }")
+
+        if not dry_run:
+            add_tags_to_files(tags, [file])
+        else:
+            print(f"Would have tagged {file} with {tags}.")
 
 
 def auto_tag():
     """Tag specified files using the spcified type of exif data."""
 
-    if sys.argv[2] not in ["exif-date", "exif-loc"]:
-        error_out(1, f"Unrecognized argument: {sys.argv[2]}")
+    dry_run = False
+
+    if "--dry-run" in sys.argv:
+        dry_run = True
+        sys.argv.remove("--dry-run")
+
+    subcommand = sys.argv[2]
+
+    if subcommand not in ["exif-date", "exif-loc", "exif"]:
+        error_out(1, f"Unrecognized argument: {subcommand}")
 
     files = []
     in_files = False
@@ -595,11 +652,11 @@ def auto_tag():
         if in_files:
             files.append(arg)
 
-    if sys.argv[2] == "exif-date":
-        tag_exif_date(files)
+    if subcommand in ["exif-date", "exif"]:
+        tag_exif_date(files, dry_run)
 
-    if sys.argv[2] == "exif-loc":
-        tag_exif_loc(files)
+    if subcommand in ["exif-loc", "exif"]:
+        tag_exif_loc(files, dry_run)
 
 
 def main():
@@ -663,7 +720,7 @@ def main():
 
     else:
         dprint(f"Printing usage because invalid command syntax...")
-        error_out(1, "Invalid command.")
+        error_out(1, f"Invalid command: `{sys.argv[1]}`")
 
     sys.exit(0)
 
