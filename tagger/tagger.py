@@ -552,7 +552,7 @@ def tag_exif_date(files: list, dry_run: bool = False):
         if not dry_run:
             add_tags_to_files(tags, [file])
         else:
-            print(f"Would have tagged {file} with {tags}.")
+            print(f"Would have [DATE] tagged {file} with {tags}.")
 
 
 def get_gps_from_exif(file):
@@ -626,7 +626,7 @@ def tag_exif_loc(files: list, dry_run: bool = False):
         if not dry_run:
             add_tags_to_files(tags, [file])
         else:
-            print(f"Would have tagged {file} with {tags}.")
+            print(f"Would have [LOCATION] tagged {file} with {tags}.")
 
 
 def auto_tag():
