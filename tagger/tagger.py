@@ -429,11 +429,13 @@ def list_tags():
                     print(tag)
                 return
 
-            tags = []
+            tags = dict()
             for file in files:
                 fpath = os.path.abspath(file)
                 fname = os.path.basename(fpath)
                 fdir = os.path.dirname(fpath)
+
+                tags[fname] = []
 
                 cur.execute(
                     """
@@ -451,12 +453,10 @@ ORDER BY f.name;
                 found_tags = [tag for (tag,) in cur.fetchall()]
                 dprint(f"{found_tags = }")
                 for found_tag in found_tags:
-                    if found_tag not in tags:
-                        tags.append(found_tag)
+                    tags[fname].append(found_tag)
 
-            dprint(f"Files associated with tag(s) {tags}:")
-            for tag in tags:
-                print(tag)
+            for fname, tags in tags.items():
+                print(f"{fname}: {tags}")
 
         except Exception as err:
             eprint(err, "Traceback:")
