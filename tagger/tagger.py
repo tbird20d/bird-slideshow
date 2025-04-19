@@ -660,9 +660,21 @@ def auto_tag():
     if subcommand in ["exif-loc", "exif"]:
         tag_exif_loc(files, dry_run)
 
-
-# TODO cgi
-
+def show_html():
+    """Handle CGI requests."""
+    print("Content-Type: text/html\n")
+    print("""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tagger</title>
+</head>
+<body>
+  <h1>Tagger</h1>
+</body>
+</html>
+""")
 
 def main():
     global _debug
@@ -705,6 +717,10 @@ def main():
         img_url = sys.argv[sys.argv.index("--img-url") + 1]
         sys.argv.remove("--img-url")
         sys.argv.remove(img_url)
+
+    if cgi:
+        show_html()
+        sys.exit(0)
     
     # Command handling
     if sys.argv[1] == "init":
