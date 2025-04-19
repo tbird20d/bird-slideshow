@@ -181,9 +181,11 @@ def init_database(is_system=False) -> None:
     current device.
     """
     dprint("Verifying db does not already exist...")
-    if find_db_path():
+    if db := find_db_path():
+        dprint(f"DB is {db}")
         error_out(1, "Cannot initialize database when one already exists.")
     path = gen_db_path(is_system)
+    dprint(f"DB path is {path}")
     had_error = False
 
     with contextlib.closing(sqlite3.connect(path)) as con:
@@ -791,8 +793,9 @@ def main():
         init_database(use_system_config)
 
     elif sys.argv[1] == "remove-database":
-        dprint("Removing tagger database...")
+        dprint("Removing tagger database from...")
         if db := find_db_path():
+            dprint(f"DB is {db}")
             os.remove(db)
             print("Tagger database successfully removed.")
         else:
