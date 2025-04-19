@@ -176,13 +176,12 @@ def gen_db_path(is_system=False) -> str:
     return file_path
 
 
-def init_database(is_system=False) -> None:
+def init_database(is_system=False, db_path=None) -> None:
     """Initialize the tagger.db database if one doesn't already exist on
     current device.
     """
     dprint("Verifying db does not already exist...")
-    if db := find_db_path():
-        dprint(f"DB is {db}")
+    if db_path:
         error_out(1, "Cannot initialize database when one already exists.")
     path = gen_db_path(is_system)
     dprint(f"DB path is {path}")
@@ -257,14 +256,14 @@ def get_fingerprint(file):
     return h.hexdigest()
 
 
-def add_tags_to_files(tags: list, files: list):
+def add_tags_to_files(db_path: str, tags: list, files: list):
     """Add the specified tags to the specified files in the database."""
 
-    assert find_db_path(), "Should have caught if there is no db path in `tag()`"
+    assert db_path, "Should have caught if there is no db path in `tag()`"
 
     dprint(f"Adding {tags=} to {files=}...")
 
-    with sqlite3.connect(find_db_path()) as con:
+    with sqlite3.connect(db_path) as con:
         cur = con.cursor()
         try:
             tag_ids = []
@@ -371,9 +370,9 @@ def add_tags_to_files(tags: list, files: list):
             eprint("SQLite syntax may be incorrect.")
 
 
-def tag() -> None:
+def tag(db_path: str | None) -> None:
     """Parse the tag(s) and file(s) in argv and add them to the database."""
-    if not find_db_path():
+    if not db_path:
         error_out(1, "Cannot add tags to an uninitialized database.")
 
     # Separates the args after 'tagger tag' ([tags] [--, -f, --files] [files])
@@ -399,10 +398,10 @@ def tag() -> None:
     if not files:
         error_out(1, "No files specified.")
 
-    add_tags_to_files(tags, files)
+    add_tags_to_files(db_path, tags, files)
 
 
-def list_tags():
+def list_tags(db_path: str):
     u_option = False
 
     if "-u" in sys.argv:
@@ -421,7 +420,7 @@ def list_tags():
 
         dprint(f"{files = }")
 
-    with sqlite3.connect(find_db_path()) as con:
+    with sqlite3.connect(db_path) as con:
         cur = con.cursor()
         try:
             # List all unused tags in the database
@@ -478,7 +477,7 @@ ORDER BY f.name;
             eprint("SQLite syntax incorrect.")
 
 
-def list_files():
+def list_files(db_path: str):
     tags = []
     in_tags = False
     for arg in sys.argv:
@@ -490,7 +489,7 @@ def list_files():
 
     dprint(f"{tags = }")
 
-    with sqlite3.connect(find_db_path()) as con:
+    with sqlite3.connect(db_path) as con:
         cur = con.cursor()
         try:
             # List all the files in the database
@@ -547,7 +546,7 @@ def get_date_from_exif(file):
         return None
 
 
-def tag_exif_date(files: list, dry_run: bool = False):
+def tag_exif_date(db_path: str, files: list, dry_run: bool = False):
     """Automatically reads date data for each file and tags year and month."""
     for file in files:
         date_str: str = get_date_from_exif(file)
@@ -563,7 +562,7 @@ def tag_exif_date(files: list, dry_run: bool = False):
         month = MONTHS[date_month]
         tags = [date_year, month]
         if not dry_run:
-            add_tags_to_files(tags, [file])
+            add_tags_to_files(db_path, tags, [file])
         else:
             print(f"Would have [DATE] tagged {file} with {tags}.")
 
@@ -591,7 +590,7 @@ def convert_dms_to_degrees(lat_ref, lat: tuple, lng_ref, lng: tuple):
     return lat_deg, lng_deg
 
 
-def tag_exif_loc(files: list, dry_run: bool = False):
+def tag_exif_loc(db_path: str, files: list, dry_run: bool = False):
     """Automatically reads gps data for each file and tags the country."""  # TODO
     for file in files:
         gps_data = get_gps_from_exif(file)
@@ -637,12 +636,12 @@ def tag_exif_loc(files: list, dry_run: bool = False):
         dprint(f"{tags = }")
 
         if not dry_run:
-            add_tags_to_files(tags, [file])
+            add_tags_to_files(db_path, tags, [file])
         else:
             print(f"Would have [LOCATION] tagged {file} with {tags}.")
 
 
-def auto_tag():
+def auto_tag(db_path: str):
     """Tag specified files using the spcified type of exif data."""
 
     dry_run = False
@@ -666,10 +665,10 @@ def auto_tag():
             files.append(arg)
 
     if subcommand in ["exif-date", "exif"]:
-        tag_exif_date(files, dry_run)
+        tag_exif_date(db_path, files, dry_run)
 
     if subcommand in ["exif-loc", "exif"]:
-        tag_exif_loc(files, dry_run)
+        tag_exif_loc(db_path, files, dry_run)
 
 def show_top_html():
     """Handle CGI requests."""
@@ -787,35 +786,39 @@ def main():
             show_query_html(query)
         sys.exit(0)
 
+    db_path = find_db_path()
+    dprint(f"DB path is {db_path}")
+
     # Command handling
     if sys.argv[1] == "init":
         dprint("Initiating tagger database...")
-        init_database(use_system_config)
+        init_database(db_path, use_system_config)
 
     elif sys.argv[1] == "remove-database":
         dprint("Removing tagger database from...")
-        if db := find_db_path():
-            dprint(f"DB is {db}")
-            os.remove(db)
+        if db_path:
+            dprint(f"DB is {db_path}")
+            os.remove(db_path)
             print("Tagger database successfully removed.")
+            sys.exit(0)
         else:
             error_out(1, "Database was not found.")
 
     elif sys.argv[1] == "tag":
         dprint("Tagging files...")
-        tag()
+        tag(db_path)
 
     elif sys.argv[1] == "list-tags":
         dprint("Querying database for tags...")
-        list_tags()
+        list_tags(db_path)
 
     elif sys.argv[1] == "list-files":
         dprint("Querying database for files...")
-        list_files()
+        list_files(db_path)
 
     elif sys.argv[1] == "auto-tag":
         dprint("Auto-tagging...")
-        auto_tag()
+        auto_tag(db_path)
 
     elif sys.argv[1] == "replace-tag":
         ...
