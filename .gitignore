@@ -7,3 +7,5 @@ snippets.bat
 
 cache/
 .vscode/
+
+!./tagger/sample-pics/
