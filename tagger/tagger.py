@@ -660,8 +660,10 @@ def auto_tag():
     if subcommand in ["exif-loc", "exif"]:
         tag_exif_loc(files, dry_run)
 
-def show_html():
+def show_html(options: dict):
     """Handle CGI requests."""
+
+    
     print("Content-Type: text/html\n")
     print("""<!DOCTYPE html>
 <html lang="en">
@@ -671,7 +673,25 @@ def show_html():
   <title>Tagger</title>
 </head>
 <body>
-  <h1>Tagger</h1>
+  <h1>Tagger Photo Manager</h1>
+  <section>
+    <h2>Query</h2>
+    <form action="/cgi-bin/tagger.cgi" method="get">
+      <input type="text" name="query" placeholder="Query values...">
+      <button type="submit">Query</button>
+    </form>
+  </section>
+  <hr>
+  <section>
+    <h2>Tag Photos</h2>
+    <pre>TODO</pre>
+  </section>
+  <hr>
+  <section>
+    <h2>Browse Photos</h2>
+    <pre>TODO</pre>
+  </section>
+  
 </body>
 </html>
 """)
