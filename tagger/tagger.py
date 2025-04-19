@@ -12,6 +12,7 @@ import PIL.ExifTags
 
 import geopy.geocoders as geocoders
 
+DB_DIR = None
 DBFILE = "tagger.db"
 _debug = False
 MONTHS = {
@@ -114,7 +115,7 @@ Features planned to be added later:
 General Options:
   -h, --help    Display this usage menu.
       --debug   Run program in debug mode.
-  -s            With <init>: If using linux, generate db in /etc/
+  --global      With <init>: If using linux, generate db in /etc/
                   (i.e. system-wide).
   -u            With <list-tags>: Lists unused tags stored in the database."""
     )
@@ -122,6 +123,14 @@ General Options:
 
 def find_db_path() -> str | None:
     """Checks whether a database file exists and returns it if it does."""
+    global DB_DIR
+
+    if DB_DIR:
+        db_path = DB_DIR + "/" + DBFILE
+        if os.path.exists(db_path):
+            return db_path
+        else:
+            return None
 
     # dprint("Finding database path...")
 
@@ -721,6 +730,7 @@ def show_query_html(query: str):
 
 def main():
     global _debug
+    global DB_DIR
     use_system_config = False
     cgi = False
 
@@ -730,8 +740,8 @@ def main():
         _debug = True
 
     # System mode option handling
-    if "-s" in sys.argv:
-        sys.argv.remove("-s")
+    if "--global" in sys.argv:
+        sys.argv.remove("--global")
         use_system_config = True
 
     # Help option handling
@@ -761,11 +771,14 @@ def main():
         sys.argv.remove("--img-url")
         sys.argv.remove(img_url)
 
+    if "--db-dir" in sys.argv:
+        DB_DIR = sys.argv[sys.argv.index("--db-dir") + 1]
+        sys.argv.remove("--db-dir")
+        sys.argv.remove(DB_DIR)
+
     if cgi:
-        query = ""
-        if os.environ.get("QUERY_STRING"):
-            query = os.environ.get("QUERY_STRING", "")
-            dprint(f"{query = }")
+        query = os.environ.get("QUERY_STRING", "")
+        dprint(f"{query = }")
         if not query:
             show_top_html()
         else:
