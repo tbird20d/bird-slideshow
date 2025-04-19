@@ -1,3 +1,5 @@
+#! /usr/bin/python3
+
 import os
 import sys
 import sqlite3
@@ -659,9 +661,13 @@ def auto_tag():
         tag_exif_loc(files, dry_run)
 
 
+# TODO cgi
+
+
 def main():
     global _debug
     use_system_config = False
+    cgi = False
 
     # Debug option handling
     if "--debug" in sys.argv:
@@ -686,6 +692,20 @@ def main():
         display_usage()
         sys.exit(0)
 
+    if "-c" in sys.argv:
+        sys.argv.remove("-c")
+        cgi = True
+
+    if "--base-url" in sys.argv:
+        base_url = sys.argv[sys.argv.index("--base-url") + 1]
+        sys.argv.remove("--base-url")
+        sys.argv.remove(base_url)
+
+    if "--img-url" in sys.argv:
+        img_url = sys.argv[sys.argv.index("--img-url") + 1]
+        sys.argv.remove("--img-url")
+        sys.argv.remove(img_url)
+    
     # Command handling
     if sys.argv[1] == "init":
         dprint("Initiating tagger database...")
@@ -717,6 +737,8 @@ def main():
 
     elif sys.argv[1] == "replace-tag":
         ...
+
+
 
     else:
         dprint(f"Printing usage because invalid command syntax...")
