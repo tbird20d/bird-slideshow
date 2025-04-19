@@ -176,7 +176,7 @@ def gen_db_path(is_system=False) -> str:
     return file_path
 
 
-def init_database(is_system=False, db_path=None) -> None:
+def init_database(db_path=None, is_system=False) -> None:
     """Initialize the tagger.db database if one doesn't already exist on
     current device.
     """
@@ -776,6 +776,7 @@ def main():
         DB_DIR = sys.argv[sys.argv.index("--db-dir") + 1]
         sys.argv.remove("--db-dir")
         sys.argv.remove(DB_DIR)
+        dprint(f"DB dir is {DB_DIR}")
 
     if cgi:
         query = os.environ.get("QUERY_STRING", "")
