@@ -125,8 +125,11 @@ def find_db_path() -> str | None:
     """Checks whether a database file exists and returns it if it does."""
     global DB_DIR
 
+    dprint(f"[IN find_db_path] DB_DIR is {DB_DIR}")
+
     if DB_DIR:
         db_path = DB_DIR + "/" + DBFILE
+        dprint(f"[IN find_db_path] db_path is {db_path}")
         if os.path.exists(db_path):
             return db_path
         else:
