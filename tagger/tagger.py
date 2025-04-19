@@ -660,9 +660,8 @@ def auto_tag():
     if subcommand in ["exif-loc", "exif"]:
         tag_exif_loc(files, dry_run)
 
-def show_html(options: dict):
+def show_top_html():
     """Handle CGI requests."""
-
     
     print("Content-Type: text/html\n")
     print("""<!DOCTYPE html>
@@ -672,6 +671,7 @@ def show_html(options: dict):
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tagger</title>
 </head>
+
 <body>
   <h1>Tagger Photo Manager</h1>
   <section>
@@ -690,6 +690,29 @@ def show_html(options: dict):
   <section>
     <h2>Browse Photos</h2>
     <pre>TODO</pre>
+  </section>
+  
+</body>
+</html>
+""")
+
+def show_query_html(query: str):
+    """Handle CGI requests."""
+    
+    print("Content-Type: text/html\n")
+    print(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tagger</title>
+</head>
+
+<body>
+  <h1>Tagger Photo Manager</h1>
+  <section>
+    <h2>Results</h2>
+    <pre>{query}</pre>
   </section>
   
 </body>
@@ -739,9 +762,16 @@ def main():
         sys.argv.remove(img_url)
 
     if cgi:
-        show_html()
+        query = ""
+        if os.environ.get("QUERY_STRING"):
+            query = os.environ.get("QUERY_STRING", "")
+            dprint(f"{query = }")
+        if not query:
+            show_top_html()
+        else:
+            show_query_html(query)
         sys.exit(0)
-    
+
     # Command handling
     if sys.argv[1] == "init":
         dprint("Initiating tagger database...")
