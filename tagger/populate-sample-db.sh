@@ -29,7 +29,7 @@ if [ "$1" = "user" ] ; then
     HELP_ARGS=""
 else
     ARGS="--db-dir $TAGGER_HOME $1"
-    HELP_ARGS="--bd-dir $TAGGER_HOME"
+    HELP_ARGS="--db-dir $TAGGER_HOME"
 fi
 
 pushd $TAGGER_HOME >/dev/null
