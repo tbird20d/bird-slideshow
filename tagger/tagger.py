@@ -12,9 +12,12 @@ import PIL.ExifTags
 
 import geopy.geocoders as geocoders
 
+# define some globals
 DB_DIR = None
 DBFILE = "tagger.db"
 _debug = False
+verbose = False
+
 MONTHS = {
     "01": "january",
     "02": "february",
@@ -32,12 +35,21 @@ MONTHS = {
 
 
 def dprint(*args, **kwargs):
+    global _debug
+
     """Debug print wrapper."""
     if _debug:
         colored_debug = "\u001b[38;5;208mDEBUG:\u001b[0m  "
         if "sep" not in kwargs:
             kwargs["sep"] = f"\n{colored_debug}"
         print(f"{colored_debug}" + str(*args[:1]), *args[1:], **kwargs)
+
+def vprint(*args, **kwargs):
+    global verbose
+
+    """verbose print wrapper."""
+    if verbose:
+        print(str(*args[:1]), *args[1:], **kwargs)
 
 
 def eprint(*args, **kwargs):
@@ -113,29 +125,36 @@ Features planned to be added later:
                     'tagger replace-tag brid bird'
 
 General Options:
-  -h, --help    Display this usage menu.
-      --debug   Run program in debug mode.
-  --global      With <init>: If using linux, generate db in /etc/
+  -h, --help     Display this usage menu.
+      --debug    Run program in debug mode.
+  --global       With <init>: If using linux, generate db in /etc/
                   (i.e. system-wide).
-  -u            With <list-tags>: Lists unused tags stored in the database."""
+  --db-dir {dir} Use or generate tagger database in the indicated directory.
+  -u             With <list-tags>: Lists unused tags stored in the database."""
     )
 
 
-def find_db_path() -> str | None:
+def find_db_path(use_global_config) -> str | None:
     """Checks whether a database file exists and returns it if it does."""
     global DB_DIR
 
+    dprint("Finding database path...")
     dprint(f"[IN find_db_path] DB_DIR is {DB_DIR}")
 
-    if DB_DIR:
-        db_path = DB_DIR + "/" + DBFILE
-        dprint(f"[IN find_db_path] db_path is {db_path}")
-        if os.path.exists(db_path):
-            return db_path
-        else:
-            return None
+    file_path = None
+    err_msg = ""
 
-    # dprint("Finding database path...")
+    # if DB_DIR is specified, it overrides any automatic db path detection
+    if DB_DIR:
+        if not os.path.exists(DB_DIR):
+            error_out(1, "DB_DIR %s does not exist" % DB_DIR)
+
+        file_path = DB_DIR + "/" + DBFILE
+        dprint(f"[IN find_db_path] file_path is {file_path}")
+        if not os.path.exists(file_path):
+            error_out(1, f"tagger database not found in {DB_DIR}")
+
+        return file_path
 
     # Check windows user directory
     if sys.platform == "win32":
@@ -143,54 +162,97 @@ def find_db_path() -> str | None:
         if os.path.exists(file_path):
             # dprint(f"File found: {file_path=}")
             return file_path
+        else:
+            file_path = None
+            err_msg = "tagger db not found in %LOCALAPPDATA%\\tagger\\"
 
     # Check linux user config and system-wide directory
-    if sys.platform.startswith("linux"):
-        file_path = os.path.expandvars("$HOME/.config/" + DBFILE)
-        if os.path.exists(file_path):
-            # dprint(f"File found: {file_path=}")
-            return file_path
-        file_path = "/etc/" + DBFILE
-        if os.path.exists(file_path):
-            # dprint(f"File found: {file_path=}")
-            return file_path
+    elif sys.platform.startswith("linux"):
+        if use_global_config:
+            file_path = "/etc/" + DBFILE
+            if os.path.exists(file_path):
+                # dprint(f"File found: {file_path=}")
+                return file_path
+            else:
+                file_path = None
+                err_msg = "tagger db not found in /etc"
+        else:
+            # check user's home dir first, then /etc
+            file_path = os.path.expandvars("$HOME/.config/" + DBFILE)
+            if os.path.exists(file_path):
+                # dprint(f"File found: {file_path=}")
+                return file_path
+            file_path = "/etc/" + DBFILE
+            if os.path.exists(file_path):
+                # dprint(f"File found: {file_path=}")
+                return file_path
+            else:
+                file_path = None
+                err_msg = "tagger database not found in user home/.config or /etc"
+    else:
+        error_out(1, f"Unrecognized sys.platform {sys.platform}")
 
-    # Didn't find it
-    return None
+    if err_msg:
+        error_out(1, err_msg)
 
+    # this code should never get hit, but put some failsafe lines here anyway
+    if not file_path:
+       eprint("Could not find tagger.db in any expected locations")
 
-def gen_db_path(is_system=False) -> str:
-    """Gets the path to the .db file."""
+    error_out(f"Invalid code path in find_db_path, file_path={file_path}")
+
+def gen_db_path(use_global_config) -> str:
+    """Gets the path to a new .db file (in the preferred location)."""
+    global DB_DIR
+
     dprint(f"Generating db file path...")
 
     file_path = None
 
+    # if DB_DIR is specified, it overrides any automatic db path locations
+    if DB_DIR:
+        file_path = DB_DIR + "/" + DBFILE
+        return file_path
+
     # Check windows user directory
     if sys.platform == "win32":
         file_path = os.path.expandvars("%LOCALAPPDATA%\\tagger\\" + DBFILE)
 
     # Check linux user config and system-wide directory
-    if sys.platform.startswith("linux"):
-        if is_system:
+    elif sys.platform.startswith("linux"):
+        if use_global_config:
             file_path = "/etc/" + DBFILE
         else:
             file_path = os.path.expandvars("$HOME/.config/" + DBFILE)
+    else:
+        error_out(1, f"Unrecognized sys.platform {sys.platform}")
+
     dprint(f"{file_path=}")
     return file_path
 
 
-def init_database(db_path=None, is_system=False) -> None:
+def init_database(use_global_config) -> None:
     """Initialize the tagger.db database if one doesn't already exist on
     current device.
     """
+    db_path = gen_db_path(use_global_config)
+
     dprint("Verifying db does not already exist...")
-    if db_path:
+    if os.path.exists(db_path):
+        print(f"DB path is {db_path}")
         error_out(1, "Cannot initialize database when one already exists.")
-    path = gen_db_path(is_system)
-    dprint(f"DB path is {path}")
+
+    dprint(f"DB path is {db_path}")
     had_error = False
 
-    with contextlib.closing(sqlite3.connect(path)) as con:
+    try:
+        con = sqlite3.connect(db_path)
+    except sqlite3.OperationalError as err:
+        eprint(err, end="")
+        #traceback.print_tb(err.__traceback__)
+        error_out(1, f"Could not create database at {db_path}")
+
+    with con:
         cur = con.cursor()
         try:
             cur.executescript(
@@ -366,14 +428,14 @@ def add_tags_to_files(db_path: str, tags: list, files: list):
                 print(f"File {file_basename} already has one of {tags}.")
                 # TODO: More descriptive error message.
                 return
-            
+
             eprint(err, "Traceback:")
 
             traceback.print_tb(err.__traceback__)
             eprint("SQLite syntax may be incorrect.")
 
 
-def tag(db_path: str | None) -> None:
+def tag(db_path: str | None, options) -> None:
     """Parse the tag(s) and file(s) in argv and add them to the database."""
     if not db_path:
         error_out(1, "Cannot add tags to an uninitialized database.")
@@ -381,12 +443,9 @@ def tag(db_path: str | None) -> None:
     # Separates the args after 'tagger tag' ([tags] [--, -f, --files] [files])
     tags = []
     files = []
-    in_tags = False
+    in_tags = True
     in_files = False
-    for arg in sys.argv:
-        if arg == "tag":
-            in_tags = True
-            continue
+    for arg in options:
         if arg in ["--", "-f", "--files"]:
             in_tags = False
             in_files = True
@@ -404,12 +463,12 @@ def tag(db_path: str | None) -> None:
     add_tags_to_files(db_path, tags, files)
 
 
-def list_tags(db_path: str):
+def list_tags(db_path: str, options):
     u_option = False
 
-    if "-u" in sys.argv:
+    if "-u" in options:
         u_option = True
-        sys.argv.remove("-u")
+        options.remove("-u")
 
     if not u_option:
         files = []
@@ -480,15 +539,10 @@ ORDER BY f.name;
             eprint("SQLite syntax incorrect.")
 
 
-def list_files(db_path: str):
+def list_files(db_path: str, options):
     tags = []
-    in_tags = False
-    for arg in sys.argv:
-        if arg == "list-files":
-            in_tags = True
-            continue
-        if in_tags:
-            tags.append(arg)
+    for arg in options:
+        tags.append(arg)
 
     dprint(f"{tags = }")
 
@@ -614,7 +668,7 @@ def tag_exif_loc(db_path: str, files: list, dry_run: bool = False):
         dprint(f"{loc = }")
 
         data: dict = loc.raw
-        
+
         dprint(f"{data = }")
 
         address: dict = data.get("address", {})
@@ -644,23 +698,23 @@ def tag_exif_loc(db_path: str, files: list, dry_run: bool = False):
             print(f"Would have [LOCATION] tagged {file} with {tags}.")
 
 
-def auto_tag(db_path: str):
+def auto_tag(db_path: str, options):
     """Tag specified files using the spcified type of exif data."""
 
     dry_run = False
 
-    if "--dry-run" in sys.argv:
+    if "--dry-run" in options:
         dry_run = True
-        sys.argv.remove("--dry-run")
+        options.remove("--dry-run")
 
-    subcommand = sys.argv[2]
+    subcommand = options[1]
 
     if subcommand not in ["exif-date", "exif-loc", "exif"]:
         error_out(1, f"Unrecognized argument: {subcommand}")
 
     files = []
     in_files = False
-    for arg in sys.argv:
+    for arg in options:
         if arg == "--":
             in_files = True
             continue
@@ -675,7 +729,7 @@ def auto_tag(db_path: str):
 
 def show_top_html():
     """Handle CGI requests."""
-    
+
     print("Content-Type: text/html\n")
     print("""<!DOCTYPE html>
 <html lang="en">
@@ -704,14 +758,14 @@ def show_top_html():
     <h2>Browse Photos</h2>
     <pre>TODO</pre>
   </section>
-  
+
 </body>
 </html>
 """)
 
 def show_query_html(query: str):
     """Handle CGI requests."""
-    
+
     print("Content-Type: text/html\n")
     print(f"""<!DOCTYPE html>
 <html lang="en">
@@ -727,15 +781,16 @@ def show_query_html(query: str):
     <h2>Results</h2>
     <pre>{query}</pre>
   </section>
-  
+
 </body>
 </html>
 """)
 
 def main():
     global _debug
+    global verbose
     global DB_DIR
-    use_system_config = False
+    use_global_config = False
     cgi = False
 
     # Debug option handling
@@ -743,10 +798,14 @@ def main():
         sys.argv.remove("--debug")
         _debug = True
 
+    if "-v" in sys.argv:
+        sys.argv.remove("-v")
+        verbose = True
+
     # System mode option handling
     if "--global" in sys.argv:
         sys.argv.remove("--global")
-        use_system_config = True
+        use_global_config = True
 
     # Help option handling
     if (
@@ -790,48 +849,57 @@ def main():
             show_query_html(query)
         sys.exit(0)
 
-    db_path = find_db_path()
+    # Command handling
+    cmd = sys.argv[1]
+    options = sys.argv[2:]
+
+    if cmd == "init":
+        vprint("Initiating tagger database...")
+
+        if options:
+            eprint(f"Unused options: {options}")
+
+        init_database(use_global_config)
+
+    if cmd == "remove-database":
+        vprint("Removing tagger database...")
+
+        if options:
+            eprint(f"Unused options: {options}")
+
+        db_path = gen_db_path(use_global_config)
+        if not os.path.exists(db_path):
+            error_out(1, f"DB was not found at {db_path}; Nothing to remove.")
+
+        os.remove(db_path)
+        print("Tagger database successfully removed.")
+        sys.exit(0)
+
+    db_path = find_db_path(use_global_config)
     dprint(f"DB path is {db_path}")
 
-    # Command handling
-    if sys.argv[1] == "init":
-        dprint("Initiating tagger database...")
-        init_database(db_path, use_system_config)
+    if cmd == "tag":
+        vprint("Tagging files...")
+        tag(db_path, options)
 
-    elif sys.argv[1] == "remove-database":
-        dprint("Removing tagger database from...")
-        if db_path:
-            dprint(f"DB is {db_path}")
-            os.remove(db_path)
-            print("Tagger database successfully removed.")
-            sys.exit(0)
-        else:
-            error_out(1, "Database was not found.")
+    elif cmd == "list-tags":
+        vprint("Querying database for tags...")
+        list_tags(db_path, options)
 
-    elif sys.argv[1] == "tag":
-        dprint("Tagging files...")
-        tag(db_path)
+    elif cmd == "list-files":
+        vprint("Querying database for files...")
+        list_files(db_path, options)
 
-    elif sys.argv[1] == "list-tags":
-        dprint("Querying database for tags...")
-        list_tags(db_path)
+    elif cmd == "auto-tag":
+        vprint("Auto-tagging...")
+        auto_tag(db_path, options)
 
-    elif sys.argv[1] == "list-files":
-        dprint("Querying database for files...")
-        list_files(db_path)
-
-    elif sys.argv[1] == "auto-tag":
-        dprint("Auto-tagging...")
-        auto_tag(db_path)
-
-    elif sys.argv[1] == "replace-tag":
+    elif cmd == "replace-tag":
         ...
 
-
-
     else:
-        dprint(f"Printing usage because invalid command syntax...")
-        error_out(1, f"Invalid command: `{sys.argv[1]}`")
+        dprint(f"Printing usage because of invalid command syntax...")
+        error_out(1, f"Invalid command: `{cmd}`")
 
     sys.exit(0)
 
