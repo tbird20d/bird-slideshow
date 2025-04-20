@@ -18,6 +18,18 @@ DBFILE = "tagger.db"
 _debug = False
 verbose = False
 
+# CGI globals
+base_url = ""    # url for tagger.cgi script
+img_url = ""     # url for base of image downloads
+files_base = ""  # stuff to strip from files to get their relative path
+
+# for testing, do this:
+# symlink /home/tbird/.../sample-pics /var/www/html/sample-pics
+#  ## make sure the apache config supports FollowSymlinks!
+# use --base-url http://localhost/cgi-bin/tagger.cgi
+# use --img-url http://localhost/sample-pics
+# use --files-base /home/tbird/.../sample-pics/
+
 MONTHS = {
     "01": "january",
     "02": "february",
@@ -538,8 +550,15 @@ ORDER BY f.name;
             traceback.print_tb(err.__traceback__)
             eprint("SQLite syntax incorrect.")
 
-
 def list_files(db_path: str, options):
+    global base_url, img_url, files_base
+
+    html = ""
+    if "--html-output" in options:
+        options.remove("--html-output")
+        html = "<ul>"
+        print(html)
+
     tags = []
     for arg in options:
         tags.append(arg)
@@ -555,7 +574,12 @@ def list_files(db_path: str, options):
                 dir_files = cur.fetchall()  # Formatted [(dir, file), (dir, file), ...]
                 paths = [dir + os.sep + fname for dir, fname in dir_files]
                 for file in paths:
-                    print(file)
+                    if html:
+                        rel_file = file.replace(files_base, "")
+                        link = f'<a href="{img_url}/{rel_file}">{rel_file}</a>'
+                        print(f"<li>{link}</li>")
+                    else:
+                        print(file)
                 return
 
             files = []
@@ -582,7 +606,12 @@ ORDER BY f.name;
 
             dprint(f"Files associated with tag(s) {tags}:")
             for file in files:
-                print(file)
+                if html:
+                    rel_file = file.replace(files_base, "")
+                    link = f'<a href="{img_url}/{rel_file}">{rel_file}</a>'
+                    print(f"<li>{link}</li>")
+                else:
+                    print(file)
 
         except Exception as err:
             eprint(err, "Traceback:")
@@ -590,6 +619,8 @@ ORDER BY f.name;
             traceback.print_tb(err.__traceback__)
             eprint("SQLite syntax incorrect.")
 
+    if html:
+        print("</ul>")
 
 def get_date_from_exif(file):
     """Reads exif data and returns datetime."""
@@ -728,10 +759,11 @@ def auto_tag(db_path: str, options):
         tag_exif_loc(db_path, files, dry_run)
 
 def show_top_html():
-    """Handle CGI requests."""
+    """Show the top-level page, when acting as a CGI script."""
+    global base_url
 
     print("Content-Type: text/html\n")
-    print("""<!DOCTYPE html>
+    print(f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -743,7 +775,7 @@ def show_top_html():
   <h1>Tagger Photo Manager</h1>
   <section>
     <h2>Query</h2>
-    <form action="/cgi-bin/tagger.cgi" method="get">
+    <form action="{base_url}" method="get">
       <input type="text" name="query" placeholder="Query values...">
       <button type="submit">Query</button>
     </form>
@@ -763,8 +795,10 @@ def show_top_html():
 </html>
 """)
 
-def show_query_html(query: str):
-    """Handle CGI requests."""
+def show_query_html(db_path, query: str):
+    """Show query results, when acting as a CGI script"""
+
+    tags = query.split("=")[1].split()
 
     print("Content-Type: text/html\n")
     print(f"""<!DOCTYPE html>
@@ -778,18 +812,28 @@ def show_query_html(query: str):
 <body>
   <h1>Tagger Photo Manager</h1>
   <section>
-    <h2>Results</h2>
+    <h2>Query</h2>
     <pre>{query}</pre>
+    <h2>Tags</h2>
+    <pre>{tags}</pre>
   </section>
-
-</body>
-</html>
+  <section>
+    <h2>Results</h2>
 """)
+
+    options = ["--html-output"]
+    options += tags
+    list_files(db_path, options)
+
+    print("\n</body>\n</html>")
+
 
 def main():
     global _debug
     global verbose
     global DB_DIR
+    global base_url, img_url, files_base
+
     use_global_config = False
     cgi = False
 
@@ -834,24 +878,24 @@ def main():
         sys.argv.remove("--img-url")
         sys.argv.remove(img_url)
 
+    if "--files-base" in sys.argv:
+        files_base = sys.argv[sys.argv.index("--files-base") + 1]
+        sys.argv.remove("--files-base")
+        sys.argv.remove(files_base)
+
     if "--db-dir" in sys.argv:
         DB_DIR = sys.argv[sys.argv.index("--db-dir") + 1]
         sys.argv.remove("--db-dir")
         sys.argv.remove(DB_DIR)
         dprint(f"DB dir is {DB_DIR}")
 
-    if cgi:
-        query = os.environ.get("QUERY_STRING", "")
-        dprint(f"{query = }")
-        if not query:
-            show_top_html()
-        else:
-            show_query_html(query)
-        sys.exit(0)
-
     # Command handling
-    cmd = sys.argv[1]
-    options = sys.argv[2:]
+    if not cgi:
+        cmd = sys.argv[1]
+        options = sys.argv[2:]
+    else:
+        cmd = "cgi"
+        options = ["--html-output"]
 
     if cmd == "init":
         vprint("Initiating tagger database...")
@@ -877,6 +921,15 @@ def main():
 
     db_path = find_db_path(use_global_config)
     dprint(f"DB path is {db_path}")
+
+    if cmd == "cgi":
+        query = os.environ.get("QUERY_STRING", "")
+        dprint(f"{query = }")
+        if not query:
+            show_top_html()
+        else:
+            show_query_html(db_path, query)
+        sys.exit(0)
 
     if cmd == "tag":
         vprint("Tagging files...")
